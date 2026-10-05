@@ -39,6 +39,7 @@ import com.winlator.container.ContainerManager
 import com.winlator.contents.AdrenotoolsManager
 import com.winlator.contents.ContentProfile
 import com.winlator.contents.ContentsManager
+import com.winlator.core.GPUInformation
 import com.winlator.core.TarCompressorUtils
 import com.winlator.xenvironment.ImageFs
 import app.gamenative.PluviaApp
@@ -186,19 +187,27 @@ fun WoWForeverScreen(
                     }
                 }
 
-                // 2. Configure container
-                scope.launch(Dispatchers.Main) { statusText = "Configuring Adreno 740 container..." }
+                val isAdreno8xx = isAdreno8xxDevice(context)
+                val driverVersion = if (isAdreno8xx) "Turnip-V32-RP6sched" else "Turnip-WoW-scheduler-test"
+                val tuDebug = if (isAdreno8xx) "noconform,sysmem" else "noconform"
+                val screenSize = if (isAdreno8xx) "1280x720" else "1920x1080"
+                val gpuLabel = if (isAdreno8xx) "Adreno 8xx" else "Adreno 740"
+
+                scope.launch(Dispatchers.Main) { statusText = "Configuring $gpuLabel container..." }
                 val containerManager = ContainerManager(context)
                 val containerId = "wow_forever"
+
+                val samsungEnv = if (Build.MANUFACTURER.equals("samsung", ignoreCase = true)) " FD_DEV_FEATURES=enable_tp_ubwc_flag_hint=1" else ""
+                val envVars = "WRAPPER_MAX_IMAGE_COUNT=0 ZINK_DESCRIPTORS=lazy ZINK_DEBUG=compact,deck_emu MESA_SHADER_CACHE_DISABLE=false MESA_SHADER_CACHE_MAX_SIZE=512MB mesa_glthread=true WINEESYNC=0 MESA_VK_WSI_PRESENT_MODE=mailbox TU_DEBUG=$tuDebug VKD3D_SHADER_MODEL=6_0 PULSE_LATENCY_MSEC=144$samsungEnv"
 
                 val configData = JSONObject().apply {
                     put("id", containerId)
                     put("name", "WoW Forever")
-                    put("screenSize", "1920x1080")
-                    put("envVars", "WRAPPER_MAX_IMAGE_COUNT=0 ZINK_DESCRIPTORS=lazy ZINK_DEBUG=compact,deck_emu MESA_SHADER_CACHE_DISABLE=false MESA_SHADER_CACHE_MAX_SIZE=512MB mesa_glthread=true WINEESYNC=0 MESA_VK_WSI_PRESENT_MODE=mailbox TU_DEBUG=noconform VKD3D_SHADER_MODEL=6_0 PULSE_LATENCY_MSEC=144${if (Build.MANUFACTURER.equals("samsung", ignoreCase = true)) " FD_DEV_FEATURES=enable_tp_ubwc_flag_hint=1" else ""}")
+                    put("screenSize", screenSize)
+                    put("envVars", envVars)
                     put("graphicsDriver", "Wrapper")
-                    put("graphicsDriverVersion", "Turnip-WoW-scheduler-test")
-                    put("graphicsDriverConfig", "version=Turnip-WoW-scheduler-test,adrenotoolsTurnip=1,resourceType=buffer,bcnEmulation=auto,quality=high")
+                    put("graphicsDriverVersion", driverVersion)
+                    put("graphicsDriverConfig", "version=$driverVersion,adrenotoolsTurnip=1,resourceType=buffer,bcnEmulation=auto,quality=high")
                     put("displayRenderer", "vulkan")
                     put("dxwrapper", "dxvk-2.4.1-wow-aarch64-test-1")
                     put("dxwrapperConfig", "version=2.4.1-wow-aarch64-test-1")
@@ -341,7 +350,7 @@ fun WoWForeverScreen(
                 Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
-                    text = "Snapdragon 8 Gen 2 / Adreno 740 Edition",
+                    text = if (isAdreno8xxDevice(context)) "Snapdragon 8 Elite / Adreno 8xx Edition" else "Snapdragon 8 Series / Adreno 740 Edition",
                     fontSize = 11.sp,
                     color = Color(0xFF7A92B0)
                 )
@@ -660,6 +669,7 @@ private fun CheckItem(label: String, ready: Boolean) {
 
 private fun ensureGameConfig(root: File) {
     val flavorDir = File(root, "_classic_beta_")
+    flavorDir.mkdirs()
     val flavorInfo = File(flavorDir, ".flavor.info")
     if (!flavorInfo.exists()) {
         flavorInfo.writeText("Product Flavor!STRING:0\nwow_classic_beta\n")
@@ -691,7 +701,9 @@ private fun ensureGameConfig(root: File) {
         "RAIDcomponentTextureLevel" to "\"0\"",
         "entityShadowFadeScale" to "\"0\"",
         "refraction" to "\"0\"",
-        "groundEffectDensity" to "\"16\""
+        "groundEffectDensity" to "\"16\"",
+        "GamePadEnable" to "\"1\"",
+        "InputDeviceInterfaceStyle" to "\"1\""
     )
     if (!configWtf.exists()) {
         configWtf.parentFile?.mkdirs()
@@ -713,6 +725,8 @@ private fun ensureGameConfig(root: File) {
                         key in listOf("worldBaseMip", "RAIDworldBaseMip") && parts[1] == "\"2\"" -> "SET $key \"0\""
                         key in listOf("graphicsTextureResolution", "raidGraphicsTextureResolution") && parts[1] == "\"0\"" -> "SET $key \"2\""
                         key in listOf("componentTextureLevel", "RAIDcomponentTextureLevel") && parts[1] == "\"1\"" -> "SET $key \"0\""
+                        key.equals("GamePadEnable", ignoreCase = true) && parts[1] != "\"1\"" -> "SET GamePadEnable \"1\""
+                        key.equals("InputDeviceInterfaceStyle", ignoreCase = true) && parts[1] != "\"1\"" -> "SET InputDeviceInterfaceStyle \"1\""
                         else -> line
                     }
                 } else line
@@ -728,18 +742,14 @@ private fun ensureGameConfig(root: File) {
     }
 }
 
-private fun installBundledComponents(context: Context, onStatus: (String) -> Unit): Boolean {
-    val assetManager = context.assets
-    val cacheDir = context.cacheDir
-
-    // 1. Install Turnip Driver if needed
+private fun extractDriverZip(context: Context, driverName: String, assetZip: String, onStatus: (String) -> Unit) {
     try {
-        val driverDir = File(context.filesDir, "contents/adrenotools/Turnip-WoW-scheduler-test")
+        val driverDir = File(context.filesDir, "contents/adrenotools/$driverName")
         val metaFile = File(driverDir, "meta.json")
         if (!metaFile.exists()) {
-            onStatus("Installing custom Turnip Adreno 740 driver...")
+            onStatus("Installing $driverName driver...")
             driverDir.mkdirs()
-            assetManager.open("bundled_components/turnip-wow-scheduler-test.zip").use { input ->
+            context.assets.open("bundled_components/$assetZip").use { input ->
                 ZipInputStream(input).use { zis ->
                     var entry = zis.nextEntry
                     while (entry != null) {
@@ -759,8 +769,25 @@ private fun installBundledComponents(context: Context, onStatus: (String) -> Uni
             }
         }
     } catch (e: Exception) {
-        Timber.e(e, "Error checking/installing bundled driver")
+        Timber.e(e, "Error extracting driver $driverName from $assetZip")
     }
+}
+
+private fun isAdreno8xxDevice(context: Context): Boolean {
+    if (GPUInformation.isAdreno8Elite(context)) return true
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        val soc = Build.SOC_MODEL
+        if (soc.contains("SM8750", ignoreCase = true) || soc.contains("SM8850", ignoreCase = true)) return true
+    }
+    return Build.HARDWARE.contains("sun", ignoreCase = true)
+}
+
+private fun installBundledComponents(context: Context, onStatus: (String) -> Unit): Boolean {
+    val assetManager = context.assets
+    val cacheDir = context.cacheDir
+
+    extractDriverZip(context, "Turnip-WoW-scheduler-test", "turnip-wow-scheduler-test.zip", onStatus)
+    extractDriverZip(context, "Turnip-V32-RP6sched", "turnip-V32-RP6sched.zip", onStatus)
 
     // 2. Install Wine/Proton 11
     try {
