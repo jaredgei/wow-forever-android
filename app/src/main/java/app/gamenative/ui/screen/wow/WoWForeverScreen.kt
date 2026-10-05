@@ -82,6 +82,7 @@ fun WoWForeverScreen(
     var isCheckingVersion by remember { mutableStateOf(false) }
     var isUpdating by remember { mutableStateOf(false) }
     var updateStatusText by remember { mutableStateOf("") }
+    var isWrongGame by remember { mutableStateOf(false) }
 
     fun checkVersionStatus() {
         if (!File(gamePath, ".build.info").exists()) return
@@ -100,13 +101,20 @@ fun WoWForeverScreen(
         val root = File(gamePath)
         val exe = File(root, "${WowClientDownloader.FLAVOR_DIR}/WowB-ARM64.exe")
         val dataDir = File(root, "Data")
+        val buildInfo = File(root, ".build.info")
 
         exeExists = exe.exists()
         dataExists = dataDir.exists() && (dataDir.listFiles()?.isNotEmpty() == true)
-        buildInfoExists = File(root, ".build.info").exists()
+        buildInfoExists = buildInfo.exists()
         hasStorageAccess = !root.exists() || root.list() != null || StorageUtils.hasStoragePermission(context, gamePath)
 
-        return exeExists && dataExists && buildInfoExists && hasStorageAccess
+        val product = if (buildInfoExists) WowClientDownloader.readBuildInfo(buildInfo)?.get("Product").orEmpty() else ""
+        isWrongGame = buildInfoExists && product.isNotBlank() && product != WowClientDownloader.TARGET_PRODUCT
+        if (isWrongGame) {
+            errorMessage = "Incompatible game ($product). WoW Forever requires World of Warcraft Classic Beta (wow_classic_beta)."
+        }
+
+        return exeExists && dataExists && buildInfoExists && hasStorageAccess && !isWrongGame
     }
 
     LifecycleResumeEffect(gamePath) {
@@ -147,12 +155,15 @@ fun WoWForeverScreen(
         errorMessage = null
         gamePath = root.absolutePath
         GamePath.save(context, gamePath)
+        versionStatus = null
+        checkFiles()
+        checkVersionStatus()
     }
 
     val filesMissing = !(dataExists && buildInfoExists)
 
     fun launchGame() {
-        if (isLaunching) return
+        if (isLaunching || isWrongGame) return
         isLaunching = true
         errorMessage = null
         statusText = "Preparing components..."
@@ -381,7 +392,10 @@ fun WoWForeverScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     CheckItem(label = "Game Asset Archives (Data/)", ready = dataExists)
                     Spacer(modifier = Modifier.height(8.dp))
-                    CheckItem(label = "Install Info (.build.info)", ready = buildInfoExists)
+                    CheckItem(
+                        label = if (isWrongGame) "Install Info (.build.info - requires wow_classic_beta)" else "Install Info (.build.info)",
+                        ready = buildInfoExists && !isWrongGame
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
                     CheckItem(label = "Turnip Driver & Proton 11 ARM64EC (Bundled)", ready = true)
                     if (versionStatus != null) {
@@ -513,7 +527,7 @@ fun WoWForeverScreen(
                     if (versionStatus?.isOutdated == true) {
                         Button(
                             onClick = { performUpdate() },
-                            enabled = !isLaunching && !isUpdating && !filesMissing,
+                            enabled = !isLaunching && !isUpdating && !filesMissing && !isWrongGame,
                             modifier = Modifier
                                 .fillMaxWidth(0.85f)
                                 .height(56.dp),
@@ -537,7 +551,7 @@ fun WoWForeverScreen(
 
                         OutlinedButton(
                             onClick = { launchGame() },
-                            enabled = !isLaunching && !isUpdating && !filesMissing,
+                            enabled = !isLaunching && !isUpdating && !filesMissing && !isWrongGame,
                             modifier = Modifier
                                 .fillMaxWidth(0.85f)
                                 .height(48.dp),
@@ -553,7 +567,7 @@ fun WoWForeverScreen(
                     } else {
                         Button(
                             onClick = { launchGame() },
-                            enabled = !isLaunching && !isUpdating && !filesMissing,
+                            enabled = !isLaunching && !isUpdating && !filesMissing && !isWrongGame,
                             modifier = Modifier
                                 .fillMaxWidth(0.85f)
                                 .height(56.dp),
@@ -566,7 +580,7 @@ fun WoWForeverScreen(
                             Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(24.dp))
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
-                                text = "PLAY WORLD OF WARCRAFT",
+                                text = if (isWrongGame) "FOREVER BETA REQUIRED" else "PLAY WORLD OF WARCRAFT",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 1.sp
@@ -624,7 +638,10 @@ object GamePath {
 
     fun load(context: Context): String {
         val saved = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_GAME_PATH, null)?.let(::File)
-        val usable = listOfNotNull(saved, defaultPath).firstOrNull { File(it, ".build.info").isFile }
+        val usable = listOfNotNull(saved, defaultPath).firstOrNull {
+            val file = File(it, ".build.info")
+            file.isFile && WowClientDownloader.readBuildInfo(file)?.get("Product") == WowClientDownloader.TARGET_PRODUCT
+        }
         return (usable ?: saved ?: defaultPath).absolutePath
     }
 
@@ -637,9 +654,11 @@ object GamePath {
         val root = File(path)
         val exe = File(root, "${WowClientDownloader.FLAVOR_DIR}/WowB-ARM64.exe")
         val dataDir = File(root, "Data")
+        val buildInfo = File(root, ".build.info")
         return exe.exists() &&
             (dataDir.exists() && dataDir.listFiles()?.isNotEmpty() == true) &&
-            File(root, ".build.info").exists() &&
+            buildInfo.isFile &&
+            WowClientDownloader.readBuildInfo(buildInfo)?.get("Product") == WowClientDownloader.TARGET_PRODUCT &&
             (!root.exists() || root.list() != null || StorageUtils.hasStoragePermission(context, path))
     }
 
