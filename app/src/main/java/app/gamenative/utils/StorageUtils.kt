@@ -14,35 +14,13 @@ object StorageUtils {
 
         if (!isOutsideSandbox) return true
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            if (Environment.isExternalStorageManager()) return true
-            return canWriteToDirectory(File(path))
-        }
-
-        val granted = androidx.core.content.ContextCompat.checkSelfPermission(
-            context,
-            android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
-        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-        return granted || canWriteToDirectory(File(path))
-    }
-
-    private fun canWriteToDirectory(target: File): Boolean {
-        var dir: File? = target
-        while (dir != null && !dir.exists()) {
-            dir = dir.parentFile
-        }
-        if (dir == null || !dir.isDirectory) return false
-        val testFile = File(dir, ".wow_perm_probe_${android.os.Process.myPid()}")
-        return try {
-            if (testFile.exists()) testFile.delete()
-            if (testFile.createNewFile()) {
-                testFile.delete()
-                true
-            } else {
-                false
-            }
-        } catch (_: Exception) {
-            false
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Environment.isExternalStorageManager()
+        } else {
+            androidx.core.content.ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
         }
     }
 

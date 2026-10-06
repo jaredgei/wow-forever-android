@@ -510,55 +510,6 @@ fun WoWForeverScreen(
                 }
             }
 
-            if (!hasStorageAccess) {
-                Spacer(modifier = Modifier.height(16.dp))
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth(0.9f)
-                        .border(1.dp, Color(0xFFED8936).copy(alpha = 0.6f), RoundedCornerShape(16.dp)),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF2D2315).copy(alpha = 0.85f)),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.Warning,
-                                contentDescription = null,
-                                tint = Color(0xFFED8936),
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "STORAGE PERMISSION REQUIRED",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFFED8936),
-                                letterSpacing = 0.5.sp
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Android requires 'All files access' to read game data and save configurations in external storage. Without this permission, opening files fails with EPERM.",
-                            fontSize = 12.sp,
-                            color = Color(0xFFFED7D7),
-                            lineHeight = 16.sp
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Button(
-                            onClick = { StorageUtils.requestManageExternalStoragePermission(context) },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF9E7138),
-                                contentColor = Color.White
-                            ),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth().height(42.dp)
-                        ) {
-                            Text("GRANT ALL FILES ACCESS", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-
             Spacer(modifier = Modifier.height(24.dp))
 
             // Action section
@@ -634,6 +585,28 @@ fun WoWForeverScreen(
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFFFC8181)
+                            )
+                        }
+                    } else if (!hasStorageAccess) {
+                        Button(
+                            onClick = { StorageUtils.requestManageExternalStoragePermission(context) },
+                            enabled = !isLaunching && !isUpdating,
+                            modifier = Modifier
+                                .fillMaxWidth(0.85f)
+                                .height(56.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF9E7138),
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "GRANT STORAGE PERMISSION",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
                             )
                         }
                     } else {
