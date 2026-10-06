@@ -134,10 +134,6 @@ class MainViewModel @Inject constructor(
         _state.update { it.copy(bootingSplashText = value) }
     }
 
-    fun setBootingSplashHeroImageUrl(url: String) {
-        _state.update { it.copy(bootingSplashHeroImageUrl = url) }
-    }
-
     fun setCurrentScreen(currentScreen: String?) {
         // Route matching accounts for query params and path params in templates
         // e.g., "home?offline={offline}" should match Home, "chat/{id}" should match Chat
@@ -171,8 +167,6 @@ class MainViewModel @Inject constructor(
         launchAppJob = viewModelScope.launch {
             setShowBootingSplash(true)
             PluviaApp.events.emit(AndroidEvent.SetAllowedOrientation(PrefManager.allowedOrientation))
-
-            setBootingSplashHeroImageUrl("")
 
             val apiJob = viewModelScope.async(Dispatchers.IO) {
                 ContainerUtils.getOrCreateContainer(context, appId)

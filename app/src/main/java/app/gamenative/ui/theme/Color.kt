@@ -72,6 +72,14 @@ val FriendAwayOrSnooze = Color(0x806DCFF6)
 val FriendInGameAwayOrSnooze = Color(0x8090BA3C)
 val FriendBlocked = Color(0xFF983D3D)
 
+// WoW Forever
+val WowBackgroundGradient = listOf(Color(0xFF0A0E17), Color(0xFF10192A), Color(0xFF080C14))
+val WowGold = Color(0xFFC79C6E)
+val WowBronze = Color(0xFF9E7138)
+val WowMuted = Color(0xFF88A0C0)
+val WowSubtle = Color(0xFF7A92B0)
+val WowError = Color(0xFFFC8181)
+
 // Compatibility
 val CompatibilityGood = Color(0xFF4CAF50)
 val CompatibilityGoodBg = Color(0xFF1B5E20)

@@ -9,6 +9,7 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
 import com.winlator.xserver.Pointer
 import com.winlator.xserver.XServer
+import kotlinx.coroutines.delay
 import timber.log.Timber
 
 /**
@@ -28,11 +29,11 @@ class IMEInputReceiver(
 
     suspend fun clickAt(x: Int, y: Int) {
         xServer.injectPointerMove(x, y)
-        kotlinx.coroutines.delay(60)
+        delay(60)
         xServer.injectPointerButtonPress(Pointer.Button.BUTTON_LEFT)
-        kotlinx.coroutines.delay(80)
+        delay(80)
         xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_LEFT)
-        kotlinx.coroutines.delay(60)
+        delay(60)
     }
 
     fun movePointerTo(x: Int, y: Int) {

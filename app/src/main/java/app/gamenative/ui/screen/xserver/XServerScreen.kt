@@ -105,6 +105,8 @@ import app.gamenative.ui.component.parsePositiveFpsLimit
 import app.gamenative.ui.data.PerformanceHudConfig
 import app.gamenative.ui.data.PerformanceHudSize
 import app.gamenative.ui.data.XServerState
+import app.gamenative.ui.screen.wow.BattleNetSignIn
+import app.gamenative.ui.screen.wow.BattleNetSignInHost
 import app.gamenative.ui.widget.PerformanceHudView
 import app.gamenative.utils.AssetUtils
 import app.gamenative.utils.ContainerUtils
@@ -1137,7 +1139,7 @@ fun XServerScreen(
         when (itemId) {
             QuickMenuAction.BATTLE_NET_SIGN_IN -> {
                 bnetSignInRequestedFromOverlay = true
-                app.gamenative.ui.screen.wow.BattleNetSignIn.requested.value = true
+                BattleNetSignIn.requested.value = true
                 true
             }
 
@@ -2701,7 +2703,7 @@ fun XServerScreen(
             )
         }
 
-        app.gamenative.ui.screen.wow.BattleNetSignInHost(
+        BattleNetSignInHost(
             onBeforeTyping = {
                 dismissOverlayMenu()
                 forceResumeIfSuspended()
@@ -4247,10 +4249,6 @@ private suspend fun extractGraphicsDriverComponent(
     }
 }
 
-/**
- * Helper function to extract a dxwrapper component, downloading if needed (modern variant)
- * or using bundled assets (legacy variant).
- */
 private fun isAtLeastVersion(value: String, minMajor: Int, minMinor: Int, minPatch: Int): Boolean {
     val match = Regex("""^(\d+)\.(\d+)(?:\.(\d+))?""").find(value) ?: return false
     val major = match.groupValues.getOrNull(1)?.toIntOrNull() ?: 0
@@ -4263,6 +4261,10 @@ private fun isAtLeastVersion(value: String, minMajor: Int, minMinor: Int, minPat
     }
 }
 
+/**
+ * Helper function to extract a dxwrapper component, downloading if needed (modern variant)
+ * or using bundled assets (legacy variant).
+ */
 private suspend fun extractDXWrapperComponent(
     context: Context,
     componentId: String,

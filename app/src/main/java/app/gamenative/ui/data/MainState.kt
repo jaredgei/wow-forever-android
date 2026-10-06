@@ -12,5 +12,4 @@ data class MainState(
     val launchedAppId: String = "",
     val showBootingSplash: Boolean = false,
     val bootingSplashText: String = "Booting...",
-    val bootingSplashHeroImageUrl: String = "",
 )

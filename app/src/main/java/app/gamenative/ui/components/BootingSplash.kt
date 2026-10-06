@@ -1,5 +1,7 @@
 package app.gamenative.ui.components
 
+import android.view.KeyEvent
+import android.view.MotionEvent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -48,13 +50,14 @@ import app.gamenative.R
 import app.gamenative.events.AndroidEvent
 import app.gamenative.ui.theme.BrandGradient
 import app.gamenative.ui.theme.PluviaTheme
+import app.gamenative.ui.theme.WowBackgroundGradient
+import app.gamenative.ui.theme.WowGold
 
 @Composable
 fun BootingSplash(
     visible: Boolean = true,
     text: String = "Initializing...",
     progress: Float = -1f,
-    heroImageUrl: String = "",
     onAbort: (() -> Unit)? = null,
 ) {
     if (visible && onAbort != null) {
@@ -73,12 +76,12 @@ fun BootingSplash(
             }
 
             val keyHandler: (AndroidEvent.KeyEvent) -> Boolean = keyHandler@ { event ->
-                val down = event.event.action == android.view.KeyEvent.ACTION_DOWN
+                val down = event.event.action == KeyEvent.ACTION_DOWN
                 when (event.event.keyCode) {
-                    android.view.KeyEvent.KEYCODE_BUTTON_START -> start = down
-                    android.view.KeyEvent.KEYCODE_BUTTON_SELECT, android.view.KeyEvent.KEYCODE_BACK -> select = down
-                    android.view.KeyEvent.KEYCODE_BUTTON_L2 -> l2 = down
-                    android.view.KeyEvent.KEYCODE_BUTTON_R2 -> r2 = down
+                    KeyEvent.KEYCODE_BUTTON_START -> start = down
+                    KeyEvent.KEYCODE_BUTTON_SELECT, KeyEvent.KEYCODE_BACK -> select = down
+                    KeyEvent.KEYCODE_BUTTON_L2 -> l2 = down
+                    KeyEvent.KEYCODE_BUTTON_R2 -> r2 = down
                     else -> return@keyHandler false
                 }
                 check() || (down && (start || select || l2 || r2))
@@ -86,8 +89,8 @@ fun BootingSplash(
 
             val motionHandler: (AndroidEvent.MotionEvent) -> Boolean = { event ->
                 event.event?.let { me ->
-                    l2 = maxOf(me.getAxisValue(android.view.MotionEvent.AXIS_LTRIGGER), me.getAxisValue(android.view.MotionEvent.AXIS_BRAKE)) >= 0.3f
-                    r2 = maxOf(me.getAxisValue(android.view.MotionEvent.AXIS_RTRIGGER), me.getAxisValue(android.view.MotionEvent.AXIS_GAS)) >= 0.3f
+                    l2 = maxOf(me.getAxisValue(MotionEvent.AXIS_LTRIGGER), me.getAxisValue(MotionEvent.AXIS_BRAKE)) >= 0.3f
+                    r2 = maxOf(me.getAxisValue(MotionEvent.AXIS_RTRIGGER), me.getAxisValue(MotionEvent.AXIS_GAS)) >= 0.3f
                     check()
                 } ?: false
             }
@@ -120,15 +123,7 @@ fun BootingSplash(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color(0xFF0A0E17),
-                            Color(0xFF10192A),
-                            Color(0xFF080C14),
-                        ),
-                    ),
-                ),
+                .background(Brush.verticalGradient(WowBackgroundGradient)),
             contentAlignment = Alignment.Center,
         ) {
             Column(
@@ -184,7 +179,7 @@ fun BootingSplash(
                         fontSize = 11.sp,
                         letterSpacing = 1.sp,
                     ),
-                    color = Color(0xFFC79C6E).copy(alpha = 0.8f),
+                    color = WowGold.copy(alpha = 0.8f),
                     textAlign = TextAlign.Center,
                 )
 

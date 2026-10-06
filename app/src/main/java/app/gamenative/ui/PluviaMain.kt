@@ -64,6 +64,9 @@ import app.gamenative.ui.enums.DialogType
 import app.gamenative.ui.enums.Orientation
 import app.gamenative.ui.model.MainViewModel
 import app.gamenative.ui.screen.PluviaScreen
+import app.gamenative.ui.screen.wow.GamePath
+import app.gamenative.ui.screen.wow.WoWForeverScreen
+import app.gamenative.ui.screen.wow.WoWLauncherState
 import app.gamenative.ui.screen.xserver.XServerScreen
 import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.ui.util.LocalSnackbarHostController
@@ -267,23 +270,23 @@ fun PluviaMain(
             )
 
             var initialSplash by remember {
-                mutableStateOf(app.gamenative.ui.screen.wow.WoWLauncherState.shouldAutoLaunch && app.gamenative.ui.screen.wow.GamePath.isReady(context))
+                mutableStateOf(WoWLauncherState.shouldAutoLaunch && GamePath.isReady(context))
             }
             var preLaunchJob by remember { mutableStateOf<Job?>(null) }
 
             DisposableEffect(Unit) {
-                val clearSplash: (app.gamenative.events.AndroidEvent.ClearBootingSplash) -> Unit = { initialSplash = false }
-                val forceClose: (app.gamenative.events.AndroidEvent.ForceCloseApp) -> Unit = {
+                val clearSplash: (AndroidEvent.ClearBootingSplash) -> Unit = { initialSplash = false }
+                val forceClose: (AndroidEvent.ForceCloseApp) -> Unit = {
                     initialSplash = false
                     preLaunchJob?.cancel()
                     preLaunchJob = null
-                    app.gamenative.ui.screen.wow.WoWLauncherState.shouldAutoLaunch = false
+                    WoWLauncherState.shouldAutoLaunch = false
                 }
-                app.gamenative.PluviaApp.events.on<app.gamenative.events.AndroidEvent.ClearBootingSplash, Unit>(clearSplash)
-                app.gamenative.PluviaApp.events.on<app.gamenative.events.AndroidEvent.ForceCloseApp, Unit>(forceClose)
+                PluviaApp.events.on<AndroidEvent.ClearBootingSplash, Unit>(clearSplash)
+                PluviaApp.events.on<AndroidEvent.ForceCloseApp, Unit>(forceClose)
                 onDispose {
-                    app.gamenative.PluviaApp.events.off<app.gamenative.events.AndroidEvent.ClearBootingSplash, Unit>(clearSplash)
-                    app.gamenative.PluviaApp.events.off<app.gamenative.events.AndroidEvent.ForceCloseApp, Unit>(forceClose)
+                    PluviaApp.events.off<AndroidEvent.ClearBootingSplash, Unit>(clearSplash)
+                    PluviaApp.events.off<AndroidEvent.ForceCloseApp, Unit>(forceClose)
                 }
             }
 
@@ -291,13 +294,12 @@ fun PluviaMain(
                 BootingSplash(
                     visible = state.showBootingSplash || initialSplash,
                     text = if (state.showBootingSplash) state.bootingSplashText else "Booting into World of Warcraft...",
-                    heroImageUrl = state.bootingSplashHeroImageUrl,
                     onAbort = {
                         initialSplash = false
                         preLaunchJob?.cancel()
                         preLaunchJob = null
                         viewModel.setLoadingDialogVisible(false)
-                        app.gamenative.ui.screen.wow.WoWLauncherState.shouldAutoLaunch = false
+                        WoWLauncherState.shouldAutoLaunch = false
                         viewModel.abortBoot()
                     },
                 )
@@ -310,7 +312,7 @@ fun PluviaMain(
                 startDestination = startDestination,
             ) {
                 composable(route = PluviaScreen.WoWLauncher.route) {
-                    app.gamenative.ui.screen.wow.WoWForeverScreen(
+                    WoWForeverScreen(
                         onLaunch = { appId ->
                             viewModel.setLaunchedAppId(appId)
                             viewModel.setOffline(true)
