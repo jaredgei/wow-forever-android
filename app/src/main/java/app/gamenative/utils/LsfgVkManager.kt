@@ -41,8 +41,6 @@ import kotlin.jvm.JvmStatic
 object LsfgVkManager {
     private const val TAG = "LsfgVkManager"
 
-    // Steam app ID for Lossless Scaling (used to auto-find the DLL)
-    const val LOSSLESS_SCALING_APP_ID = 993090
     private const val LOSSLESS_DLL_NAME = "Lossless.dll"
 
     // Paths inside the container's HOME (relative to rootDir)
@@ -415,11 +413,6 @@ object LsfgVkManager {
             Timber.tag(TAG).d("Runtime %s already installed in %s", RUNTIME_VERSION, rootDir)
         }
 
-        // Delete the Lossless Scaling container if it exists (no longer needed)
-        // We now copy the DLL directly from Steam install dir instead of creating a container
-        deleteLosslessScalingContainerIfExists(context)
-
-        // Copy Lossless.dll from Steam install dir into the container
         val dllFile = File(dllDir, LOSSLESS_DLL_NAME)
         val steamDll = findSteamDll()
         if (steamDll != null) {
@@ -618,29 +611,6 @@ object LsfgVkManager {
     private fun formatFlowScale(value: Float): String =
         String.format(Locale.US, "%.2f", value.coerceIn(0.25f, 1.0f))
 
-    /**
-     * Delete the Lossless Scaling container if it exists.
-     * This container is no longer needed since we copy the DLL directly from
-     * the Steam install directory instead of creating a container for app 993090.
-     * This saves storage space.
-     */
-    private fun deleteLosslessScalingContainerIfExists(context: Context) {
-        try {
-            val containerManager = ContainerManager(context)
-            val losslessContainer = containerManager.getContainerById("STEAM_$LOSSLESS_SCALING_APP_ID")
-            if (losslessContainer != null) {
-                Timber.tag(TAG).i("Deleting Lossless Scaling container to save storage")
-                if (FileUtils.delete(losslessContainer.rootDir)) {
-                    containerManager.containers.remove(losslessContainer)
-                    Timber.tag(TAG).i("Successfully deleted Lossless Scaling container")
-                } else {
-                    Timber.tag(TAG).w("Failed to delete Lossless Scaling container directory")
-                }
-            }
-        } catch (t: Throwable) {
-            Timber.tag(TAG).w(t, "Error while trying to delete Lossless Scaling container")
-        }
-    }
 
     // ---- Runtime hot-reload -----------------------------------------------
 

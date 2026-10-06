@@ -1,1 +1,0 @@
-@ stdcall gnWineUnixCall(long ptr)

@@ -22,10 +22,7 @@ libarchive-android = "1.1.6" # https://mvnrepository.com/artifact/me.zhanghai.an
 media3 = "1.9.1" # https://mvnrepository.com/artifact/androidx.media3/media3-exoplayer
 lifecycleRuntimeKtx = "2.8.7" # https://mvnrepository.com/artifact/androidx.lifecycle/lifecycle-runtime-ktx
 material = "1.12.0" # https://mvnrepository.com/artifact/com.google.android.material/material
-material3Adaptive = "1.0.0" # https://mvnrepository.com/artifact/androidx.compose.material3.adaptive/adaptive-layout
-material3AdaptiveNavSuite = "1.3.1" # https://mvnrepository.com/artifact/androidx.compose.material3/material3-adaptive-navigation-suite
 material3Version = "1.3.1" # Minimum version for pull-to-refresh support
-materialKolor = "2.0.0" # https://mvnrepository.com/artifact/com.materialkolor/material-kolor-android
 mockito = "5.14.2" # https://mvnrepository.com/artifact/org.mockito/mockito-core
 mockitoKotlin = "5.3.1" # https://mvnrepository.com/artifact/org.mockito.kotlin/mockito-kotlin
 mockk = "1.13.5" # https://mvnrepository.com/artifact/io.mockk/mockk
@@ -46,9 +43,6 @@ androidx-hilt-navigation-compose = { module = "androidx.hilt:hilt-navigation-com
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
 androidx-material-icons = { group = "androidx.compose.material", name = "material-icons-extended" }
 androidx-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3Version" }
-androidx-material3-adaptive-layout = { module = "androidx.compose.material3.adaptive:adaptive-layout", version.ref = "material3Adaptive" }
-androidx-material3-adaptive-nav-suite = { module = "androidx.compose.material3:material3-adaptive-navigation-suite", version.ref = "material3AdaptiveNavSuite" }
-androidx-material3-adaptive-navigation = { module = "androidx.compose.material3.adaptive:adaptive-navigation", version.ref = "material3Adaptive" }
 
 # TODO: Remove 'version' once 1.8.0 is rolled into stable BOM, see https://developer.android.com/jetpack/androidx/releases/compose-ui
 #   This fixes `Placement happened before lookahead` crash when animating lists items.
@@ -60,7 +54,6 @@ androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-toolin
 apache-compress = { group = "org.apache.commons", name = "commons-compress", version.ref = "apache-compress" }
 apng = { group = "com.github.penfeizhou.android.animation", name = "apng", version.ref = "apng" }
 compose-settings-ui = { module = "com.github.alorma.compose-settings:ui-tiles", version.ref = "settings" }
-compose-settings-ui-extended = { module = "com.github.alorma.compose-settings:ui-tiles-extended", version.ref = "settings" }
 datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "dataStore" }
 feature-delivery = { module = "com.google.android.play:feature-delivery-ktx", version.ref = "feature-delivery" }
 hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "dagger-hilt" }
@@ -73,7 +66,6 @@ media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = 
 media3-exoplayer-hls = { module = "androidx.media3:media3-exoplayer-hls", version.ref = "media3" }
 media3-ui = { module = "androidx.media3:media3-ui", version.ref = "media3" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
-material-kolor = { group = "com.materialkolor", name = "material-kolor", version.ref = "materialKolor" }
 navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigation-compose" }
 orgJson = { module = "org.json:json", version.ref = "orgJson" }
 timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "timber" }
@@ -127,15 +119,10 @@ compose = [
     "androidx-activity-compose",
     "androidx-material-icons",
     "androidx-material3",
-    "androidx-material3-adaptive-layout",
-    "androidx-material3-adaptive-nav-suite",
-    "androidx-material3-adaptive-navigation",
     "androidx-ui",
     "androidx-ui-graphics",
     "androidx-ui-tooling-preview",
     "compose-settings-ui",
-    "compose-settings-ui-extended",
-    "material-kolor",
     "navigation-compose",
 ]
 winlator = [

@@ -3,7 +3,6 @@ package app.gamenative.utils
 import android.content.Context
 import android.os.Build
 import app.gamenative.PrefManager
-import app.gamenative.data.GameSource
 import com.winlator.container.Container
 import com.winlator.container.ContainerData
 import com.winlator.container.ContainerManager
@@ -122,8 +121,6 @@ object ContainerUtils {
             drives = PrefManager.drives,
             execArgs = PrefManager.execArgs,
             showFPS = false,
-            launchRealSteam = PrefManager.launchRealSteam,
-            launchBionicSteam = PrefManager.launchBionicSteam,
             cpuList = PrefManager.cpuList,
             cpuListWoW64 = PrefManager.cpuListWoW64,
             wow64Mode = PrefManager.wow64Mode,
@@ -135,12 +132,6 @@ object ContainerUtils {
             desktopTheme = WineThemeManager.DEFAULT_DESKTOP_THEME,
             language = PrefManager.containerLanguage,
             containerVariant = PrefManager.containerVariant,
-            forceDlc = PrefManager.forceDlc,
-            localSavesOnly = PrefManager.localSavesOnly,
-            steamOfflineMode = PrefManager.steamOfflineMode,
-            epicOfflineMode = PrefManager.epicOfflineMode,
-            useLegacyDRM = PrefManager.useLegacyDRM,
-            unpackFiles = PrefManager.unpackFiles,
             suspendPolicy = PrefManager.suspendPolicy,
             fasterExternalLoading = PrefManager.fasterExternalLoading,
             disableLibredirect = PrefManager.disableLibredirect,
@@ -159,7 +150,6 @@ object ContainerUtils {
             videoMemorySize = PrefManager.videoMemorySize,
             mouseWarpOverride = PrefManager.mouseWarpOverride,
             useDRI3 = PrefManager.useDRI3,
-            useSteamInput = PrefManager.useSteamInput,
             enableXInput = PrefManager.xinputEnabled,
 			enableDInput = PrefManager.dinputEnabled,
 			dinputMapperType = PrefManager.dinputMapperType.toByte(),
@@ -191,8 +181,6 @@ object ContainerUtils {
         PrefManager.winComponents = containerData.wincomponents
         PrefManager.drives = containerData.drives
         PrefManager.execArgs = containerData.execArgs
-        PrefManager.launchRealSteam = containerData.launchRealSteam
-        PrefManager.launchBionicSteam = containerData.launchBionicSteam
         PrefManager.cpuList = containerData.cpuList
         PrefManager.cpuListWoW64 = containerData.cpuListWoW64
         PrefManager.wow64Mode = containerData.wow64Mode
@@ -224,16 +212,9 @@ object ContainerUtils {
         PrefManager.fexcorePreset = containerData.fexcorePreset
 		// Persist renderer and controller defaults
 		PrefManager.renderer = containerData.renderer
-        PrefManager.useSteamInput = containerData.useSteamInput
         PrefManager.xinputEnabled = containerData.enableXInput
 		PrefManager.dinputEnabled = containerData.enableDInput
 		PrefManager.dinputMapperType = containerData.dinputMapperType.toInt()
-        PrefManager.forceDlc = containerData.forceDlc
-        PrefManager.localSavesOnly = containerData.localSavesOnly
-        PrefManager.steamOfflineMode = containerData.steamOfflineMode
-        PrefManager.epicOfflineMode = containerData.epicOfflineMode
-        PrefManager.useLegacyDRM = containerData.useLegacyDRM
-        PrefManager.unpackFiles = containerData.unpackFiles
         PrefManager.suspendPolicy = containerData.suspendPolicy
         PrefManager.fasterExternalLoading = containerData.fasterExternalLoading
         PrefManager.disableLibredirect = containerData.disableLibredirect
@@ -282,7 +263,6 @@ object ContainerUtils {
         val enableX = apiOrdinal == PreferredInputApi.XINPUT.ordinal || apiOrdinal == PreferredInputApi.BOTH.ordinal
         val enableD = apiOrdinal == PreferredInputApi.DINPUT.ordinal || apiOrdinal == PreferredInputApi.BOTH.ordinal
         val mapperType = container.getDinputMapperType()
-        val useSteamInput = container.getExtra("useSteamInput", "false").toBoolean()
         // Read disable-mouse flag from container
         val disableMouse = container.isDisableMouseInput()
         // Read touchscreen-mode flag from container
@@ -318,9 +298,6 @@ object ContainerUtils {
             execArgs = container.execArgs,
             executablePath = container.executablePath,
             showFPS = false,
-            launchRealSteam = container.isLaunchRealSteam,
-            launchBionicSteam = container.isLaunchBionicSteam,
-            allowSteamUpdates = container.isAllowSteamUpdates,
             steamType = container.getSteamType(),
             cpuList = container.cpuList,
             cpuListWoW64 = container.cpuListWoW64,
@@ -340,14 +317,6 @@ object ContainerUtils {
             sdlControllerAPI = container.isSdlControllerAPI,
             fasterExternalLoading = container.isFasterExternalLoading,
             disableLibredirect = container.isDisableLibredirect,
-            useSteamInput = useSteamInput,
-            forceDlc = container.isForceDlc,
-            localSavesOnly = container.isLocalSavesOnly,
-            steamOfflineMode = container.isSteamOfflineMode(),
-            epicOfflineMode = container.isEpicOfflineMode(),
-            disableEpicOverlay = container.isDisableEpicOverlay,
-            useLegacyDRM = container.isUseLegacyDRM(),
-            unpackFiles = container.isUnpackFiles(),
             suspendPolicy = container.suspendPolicy,
             portraitMode = container.isPortraitMode,
             portraitBelowCutout = container.isPortraitBelowCutout,
@@ -373,8 +342,6 @@ object ContainerUtils {
             sharpnessDenoise = container.getExtra("sharpnessDenoise", "100").toIntOrNull() ?: 100,
             // LSFG Vulkan frame generation
             lsfgEnabled = container.getExtra(LsfgVkManager.EXTRA_ARMED, "false").toBoolean(),
-            windowsVrEnabled = container.getExtra("windowsVrEnabled", "false").toBoolean(),
-            openCompositeEnabled = container.getExtra("windowsVrOpenCompositeEnabled", "false").toBoolean(),
         )
     }
 
@@ -392,9 +359,6 @@ object ContainerUtils {
     fun applyToContainer(context: Context, container: Container, containerData: ContainerData, saveToDisk: Boolean) {
         Timber.d("Applying containerData to container. execArgs: '${containerData.execArgs}', saveToDisk: $saveToDisk")
 
-        val previousUnpackFiles: Boolean = container.isUnpackFiles
-        val previousLaunchBionicSteam: Boolean = container.isLaunchBionicSteam
-        val previousLaunchRealSteam: Boolean = container.isLaunchRealSteam
         val userRegFile = File(container.rootDir, ".wine/user.reg")
         WineRegistryEditor(userRegFile).use { registryEditor ->
             registryEditor.setStringValue("Software\\Wine\\Direct3D", "renderer", containerData.renderer)
@@ -437,13 +401,6 @@ object ContainerUtils {
         }
         container.executablePath = containerData.executablePath
         container.isShowFPS = false
-        container.isLaunchRealSteam = containerData.launchRealSteam
-        container.isLaunchBionicSteam = containerData.launchBionicSteam
-        if (previousLaunchBionicSteam != containerData.launchBionicSteam ||
-            previousLaunchRealSteam != containerData.launchRealSteam) {
-            container.setNeedsUnpacking(true)
-        }
-        container.isAllowSteamUpdates = containerData.allowSteamUpdates
         container.setSteamType(containerData.steamType)
         container.cpuList = containerData.cpuList
         container.cpuListWoW64 = containerData.cpuListWoW64
@@ -456,7 +413,6 @@ object ContainerUtils {
         container.isSdlControllerAPI = containerData.sdlControllerAPI
         container.isFasterExternalLoading = containerData.fasterExternalLoading
         container.isDisableLibredirect = containerData.disableLibredirect
-        container.putExtra("useSteamInput", containerData.useSteamInput)
         container.desktopTheme = containerData.desktopTheme
         container.graphicsDriverVersion = containerData.graphicsDriverVersion
         container.containerVariant = containerData.containerVariant
@@ -471,26 +427,13 @@ object ContainerUtils {
         container.setShooterConfig(containerData.shooterConfig)
         container.setExternalDisplayMode(containerData.externalDisplayMode)
         container.setExternalDisplaySwap(containerData.externalDisplaySwap)
-        container.setForceDlc(containerData.forceDlc)
-        container.setLocalSavesOnly(containerData.localSavesOnly)
-        container.setSteamOfflineMode(containerData.steamOfflineMode)
-        container.setEpicOfflineMode(containerData.epicOfflineMode)
-        container.setDisableEpicOverlay(containerData.disableEpicOverlay)
-        container.setUseLegacyDRM(containerData.useLegacyDRM)
-        container.setUnpackFiles(containerData.unpackFiles)
         container.setSuspendPolicy(containerData.suspendPolicy)
         container.setPortraitMode(containerData.portraitMode)
         container.setPortraitBelowCutout(containerData.portraitBelowCutout)
-        if (previousUnpackFiles != containerData.unpackFiles && containerData.unpackFiles) {
-            container.setNeedsUnpacking(true)
-        }
         container.putExtra("sharpnessEffect", containerData.sharpnessEffect)
         container.putExtra("sharpnessLevel", containerData.sharpnessLevel.toString())
         container.putExtra("sharpnessDenoise", containerData.sharpnessDenoise.toString())
-        // LSFG Vulkan frame generation
         container.putExtra(LsfgVkManager.EXTRA_ARMED, containerData.lsfgEnabled.toString())
-        container.putExtra("windowsVrEnabled", containerData.windowsVrEnabled.toString())
-        container.putExtra("windowsVrOpenCompositeEnabled", containerData.openCompositeEnabled.toString())
         try {
             container.language = containerData.language
         } catch (e: Exception) {
@@ -580,9 +523,6 @@ object ContainerUtils {
         containerManager: ContainerManager,
         customConfig: ContainerData? = null,
     ): Container {
-         // Determine game source
-        val gameSource = extractGameSourceFromContainerId(appId)
-
         val defaultDrives = PrefManager.drives
         val drives = defaultDrives
         Timber.d("Prepared container drives: $drives")
@@ -661,8 +601,6 @@ object ContainerUtils {
                 drives = drives,
                 execArgs = PrefManager.execArgs,
                 showFPS = false,
-                launchRealSteam = PrefManager.launchRealSteam,
-                launchBionicSteam = PrefManager.launchBionicSteam,
                 wow64Mode = PrefManager.wow64Mode,
                 startupSelection = PrefManager.startupSelection.toByte(),
                 box86Version = PrefManager.box86Version,
@@ -691,11 +629,6 @@ object ContainerUtils {
                 enableDInput = PrefManager.dinputEnabled,
                 dinputMapperType = PrefManager.dinputMapperType.toByte(),
                 disableMouseInput = PrefManager.disableMouseInput,
-                forceDlc = PrefManager.forceDlc,
-                steamOfflineMode = PrefManager.steamOfflineMode,
-                epicOfflineMode = PrefManager.epicOfflineMode,
-                useLegacyDRM = PrefManager.useLegacyDRM,
-                unpackFiles = PrefManager.unpackFiles,
                 suspendPolicy = PrefManager.suspendPolicy,
                 fasterExternalLoading = PrefManager.fasterExternalLoading,
                 disableLibredirect = PrefManager.disableLibredirect,
@@ -728,153 +661,21 @@ object ContainerUtils {
 
     fun getOrCreateContainer(context: Context, appId: String): Container {
         val containerManager = ContainerManager(context)
-
-        val container = if (containerManager.hasContainer(appId)) {
+        return if (containerManager.hasContainer(appId)) {
             containerManager.getContainerById(appId)
         } else {
             createNewContainer(context, appId, appId, containerManager)
         }
-
-        // Ensure Custom Games have the A: drive mapped to the game folder
-        // and GOG games have a drive mapped to the GOG games directory
-        // and Epic games have a drive mapped to the Epic game directory
-        val gameSource = extractGameSourceFromContainerId(appId)
-        val gameFolderPath: String? = null
-        val resolvedGameFolderPath = StorageUtils.resolveLegacyGameDir(gameFolderPath)
-
-        if (resolvedGameFolderPath != null) {
-            // Check if A: drive is already mapped to the correct path
-            var hasCorrectADrive = false
-            for (drive in Container.drivesIterator(container.drives)) {
-                if (drive[0] == "A" && drive[1] == resolvedGameFolderPath) {
-                    hasCorrectADrive = true
-                    break
-                }
-            }
-
-            // If A: drive is not mapped correctly, update it
-            if (!hasCorrectADrive) {
-                val currentDrives = container.drives
-                // Rebuild drives string, excluding existing A: drive and adding new one
-                val drivesBuilder = StringBuilder()
-                drivesBuilder.append("A:$resolvedGameFolderPath")
-
-                // Add all other drives (excluding A:)
-                for (drive in Container.drivesIterator(currentDrives)) {
-                    if (drive[0] != "A") {
-                        drivesBuilder.append("${drive[0]}:${drive[1]}")
-                    }
-                }
-
-                val updatedDrives = drivesBuilder.toString()
-                container.drives = updatedDrives
-                container.saveData()
-                Timber.d("Updated container drives to include A: drive mapping: $updatedDrives")
-            }
-        } else {
-            Timber.w("Could not find gameFolderPath for game $appId, skipping drive mapping update")
-        }
-        return container
     }
 
-    fun getOrCreateContainerWithOverride(context: Context, appId: String): Container {
-        val containerManager = ContainerManager(context)
-
-        return if (containerManager.hasContainer(appId)) {
-            val container = containerManager.getContainerById(appId)
-
-            // Apply temporary override if present (without saving to disk)
-            if (IntentLaunchManager.hasTemporaryOverride(appId)) {
-                val overrideConfig = IntentLaunchManager.getTemporaryOverride(appId)
-                if (overrideConfig != null) {
-                    // Backup original config before applying override (if not already backed up)
-                    if (IntentLaunchManager.getOriginalConfig(appId) == null) {
-                        val originalConfig = toContainerData(container)
-                        IntentLaunchManager.setOriginalConfig(appId, originalConfig)
-                    }
-
-                    // Get the effective config (merge base with override)
-                    val effectiveConfig = IntentLaunchManager.getEffectiveContainerConfig(context, appId)
-                    if (effectiveConfig != null) {
-                        applyToContainer(context, container, effectiveConfig, saveToDisk = false)
-                        Timber.i("Applied temporary config override to existing container for app $appId (in-memory only)")
-                    }
-                }
-            }
-
-            container
-        } else {
-            // Create new container with override config if present
-            val overrideConfig = if (IntentLaunchManager.hasTemporaryOverride(appId)) {
-                IntentLaunchManager.getTemporaryOverride(appId)
-            } else {
-                null
-            }
-
-            createNewContainer(context, appId, appId, containerManager, overrideConfig)
-        }
-    }
-
-    /**
-     * Deletes the container associated with the given appId, if it exists.
-     */
-    fun deleteContainer(context: Context, appId: String) {
-        Timber.i("[ContainerDeletion] Attempting to delete container for appId=$appId")
-        val manager = ContainerManager(context)
-        val hasContainer = manager.hasContainer(appId)
-        Timber.i("[ContainerDeletion] hasContainer($appId) = $hasContainer")
-        if (hasContainer) {
-            // Remove the container directory asynchronously
-            manager.removeContainerAsync(
-                manager.getContainerById(appId),
-            ) {
-                Timber.i("[ContainerDeletion] Successfully deleted container for appId=$appId")
-            }
-        } else {
-            Timber.w("[ContainerDeletion] No container found for appId=$appId — deletion aborted.")
-
-            // Containers successfully parsed by ContainerManager (config file was readable)
-            val loadedIds = manager.containers.map { it.id }
-            Timber.w("[ContainerDeletion] Loaded containers (${loadedIds.size}): $loadedIds")
-
-            // Raw filesystem scan — catches directories whose config file was empty/corrupt and
-            // were silently skipped by ContainerManager. These are potential orphans.
-            // Directory layout: <filesDir>/imagefs/home/xuser-<containerId>
-            val homeDir = java.io.File(context.filesDir, "imagefs/home")
-            val prefix = "${com.winlator.xenvironment.ImageFs.USER}-"
-            val rawIds = homeDir.listFiles()
-                ?.filter { it.isDirectory && it.name.startsWith(prefix) }
-                ?.map { it.name.removePrefix(prefix) }
-                ?: emptyList()
-            val unloadedIds = rawIds - loadedIds.toSet()
-            Timber.w("[ContainerDeletion] Raw filesystem dirs (${rawIds.size}): $rawIds")
-            if (unloadedIds.isNotEmpty()) {
-                Timber.w("[ContainerDeletion] Dirs present on disk but NOT loaded by ContainerManager (corrupt/empty config): $unloadedIds")
-            }
-        }
-    }
-
-    /**
-     * Extracts the game ID from a container ID string
-     * Handles formats like:
-     * - STEAM_123456 -> 123456
-     * - EPIC_2938123
-     * - CUSTOM_GAME_571969840 -> 571969840
-     * - GOG_19283103 -> 19283103
-     * - STEAM_123456(1) -> 123456
-     * - 19283103 -> 19283103 (legacy GOG format)
-     */
     fun extractGameIdFromContainerId(containerId: String): Int {
-        // Remove duplicate suffix like (1), (2) if present
         val idWithoutSuffix = if (containerId.contains("(")) {
             containerId.substringBefore("(")
         } else {
             containerId
         }
 
-        // Split by underscores and find the last numeric part
         val parts = idWithoutSuffix.split("_")
-        // The last part should be the numeric ID
         val lastPart = parts.lastOrNull() ?: throw IllegalArgumentException("Invalid container ID format: $containerId")
 
         return try {
@@ -884,189 +685,8 @@ object ContainerUtils {
         }
     }
 
-    /**
-     * Extracts the game source from a container ID string
-     */
-    fun extractGameSourceFromContainerId(containerId: String): GameSource {
-        return when {
-            containerId.startsWith("CUSTOM_GAME_") || containerId.contains("wow", ignoreCase = true) -> GameSource.CUSTOM_GAME
-            containerId.startsWith("STEAM_") -> GameSource.STEAM
-            containerId.startsWith("GOG_") -> GameSource.GOG
-            containerId.startsWith("EPIC_") -> GameSource.EPIC
-            containerId.startsWith("AMAZON_") -> GameSource.AMAZON
-            else -> GameSource.CUSTOM_GAME
-        }
-    }
-
-    fun isLocalSavesOnly(context: Context, appId: String): Boolean {
-        if (!hasContainer(context, appId)) return false
-        val container = getContainer(context, appId)
-        return container.isLocalSavesOnly
-    }
-
-    fun supportsKnownConfigAutoApply(gameSource: GameSource): Boolean = when (gameSource) {
-        GameSource.STEAM,
-        GameSource.GOG,
-        GameSource.EPIC,
-        GameSource.AMAZON,
-        GameSource.CUSTOM_GAME,
-        -> true
-    }
-
-    fun resolveGameName(containerId: String): String {
-        return if (containerId.contains("wow", ignoreCase = true)) "World of Warcraft" else containerId
-    }
-
-    /**
-     * Gets the file system path for the container's A: drive
-     */
-    fun getADrivePath(drives: String): String? {
-        // Use the existing Container.drivesIterator logic
-        for (drive in Container.drivesIterator(drives)) {
-            if (drive[0] == "A") {
-                return drive[1]
-            }
-        }
-        return null
-    }
 
     fun isAbsoluteWindowsPath(path: String): Boolean =
         Regex("^[A-Za-z]:[\\\\/]").containsMatchIn(path)
 
-    /**
-     * Scans the container's A: drive for all .exe and .bat files
-     */
-    fun scanExecutablesInADrive(drives: String): List<String> {
-        val executables = mutableListOf<String>()
-
-        try {
-            // Find the A: drive path from container drives
-            val aDrivePath = getADrivePath(drives)
-            if (aDrivePath == null) {
-                Timber.w("No A: drive found in container drives")
-                return emptyList()
-            }
-
-            val aDir = File(aDrivePath)
-            if (!aDir.exists() || !aDir.isDirectory) {
-                Timber.w("A: drive path does not exist or is not a directory: $aDrivePath")
-                return emptyList()
-            }
-
-            Timber.d("Scanning for executables in A: drive: $aDrivePath")
-
-            // Recursively scan for .exe/.bat files using listFiles with depth limit.
-            // Symlinked directories are skipped to avoid cycles (e.g. GOG ISI rootdir -> game root).
-            fun scanRecursive(dir: File, baseDir: File, depth: Int = 0, maxDepth: Int = 10) {
-                if (depth > maxDepth) return
-
-                dir.listFiles()?.forEach { file ->
-                    if (file.isDirectory) {
-                        if (FileUtils.isSymlink(file)) return@forEach
-                        scanRecursive(file, baseDir, depth + 1, maxDepth)
-                    } else if (file.isFile && (file.name.lowercase().endsWith(".exe") || file.name.lowercase().endsWith(".bat"))) {
-                        // Convert to relative Windows path format
-                        val relativePath = baseDir.toURI().relativize(file.toURI()).path
-                        executables.add(relativePath)
-                    }
-                }
-            }
-
-            scanRecursive(aDir, aDir)
-
-            // Sort alphabetically and prioritize common game executables
-            executables.sortWith { a, b ->
-                val aScore = getExecutablePriority(a)
-                val bScore = getExecutablePriority(b)
-
-                if (aScore != bScore) {
-                    bScore.compareTo(aScore) // Higher priority first
-                } else {
-                    a.compareTo(b, ignoreCase = true) // Alphabetical
-                }
-            }
-
-            Timber.d("Found ${executables.size} executables in A: drive")
-        } catch (e: Exception) {
-            Timber.e(e, "Error scanning A: drive for executables")
-        }
-
-        return executables
-    }
-
-    /**
-     * Filters a list of exe paths to exclude system/utility executables (e.g. uninstallers, setup, crash handlers).
-     * Used when unpackFiles is enabled to determine which exes to run Steamless on.
-     */
-    fun filterExesForUnpacking(exePaths: List<String>): List<String> = exePaths.filter { path ->
-        val fileName = path.substringAfterLast('/').substringAfterLast('\\').lowercase()
-        fileName.endsWith(".exe") && !isSystemExecutable(fileName)
-    }
-
-    /**
-     * Assigns priority scores to executables for better sorting
-     */
-    private fun getExecutablePriority(exePath: String): Int {
-        val fileName = exePath.substringAfterLast('\\').lowercase()
-        val baseName = fileName.substringBeforeLast('.')
-
-        return when {
-            // Highest priority: common game executable patterns
-            fileName.contains("game") -> 100
-
-            fileName.contains("start") -> 85
-
-            fileName.contains("main") -> 80
-
-            fileName.contains("launcher") && !fileName.contains("unins") -> 75
-
-            // High priority: probable main executables
-            baseName.length >= 4 && !isSystemExecutable(fileName) -> 70
-
-            // Medium priority: any non-system executable
-            !isSystemExecutable(fileName) -> 50
-
-            // Low priority: system/utility executables
-            else -> 10
-        }
-    }
-
-    /**
-     * Checks if an executable is likely a system/utility file
-     */
-    private fun isSystemExecutable(fileName: String): Boolean {
-        val baseName = fileName.removeSuffix(".exe")
-        val strongPrefixes = listOf(
-            "unins",
-            "uninstall",
-            "setup",
-            "install",
-            "redist",
-            "vcredist",
-            "vc_redist",
-            "dxsetup",
-            "directx",
-            "crashhandler",
-            "crashreporter",
-        )
-
-        if (strongPrefixes.any { baseName.startsWith(it) }) {
-            return true
-        }
-
-        val denylistTokens = setOf(
-            "unins",
-            "uninstall",
-            "setup",
-            "installer",
-            "redist",
-            "vcredist",
-            "directx",
-            "dxsetup",
-            "crashhandler",
-            "crashreporter",
-        )
-        val tokens = baseName.split(Regex("[^a-z0-9]+")).filter { it.isNotBlank() }
-        return tokens.any { it in denylistTokens }
-    }
 }

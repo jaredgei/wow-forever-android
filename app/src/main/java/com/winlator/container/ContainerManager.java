@@ -192,7 +192,6 @@ public class ContainerManager {
         dstContainer.setBox64Version(srcContainer.getBox64Version());
         dstContainer.setBox86Version(srcContainer.getBox86Version());
         dstContainer.setDesktopTheme(srcContainer.getDesktopTheme());
-        dstContainer.setRcfileId(srcContainer.getRCFileId());
         dstContainer.setWineVersion(srcContainer.getWineVersion());
         dstContainer.setContainerVariant(srcContainer.getContainerVariant());
         dstContainer.setBasePrefix(srcContainer.getBasePrefix());

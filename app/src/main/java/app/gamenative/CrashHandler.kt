@@ -90,8 +90,6 @@ class CrashHandler(
     }
 
     override fun uncaughtException(thread: Thread, throwable: Throwable) {
-        PrefManager.recentlyCrashed = true
-
         saveCrashToFile(throwable)
         defaultHandler?.uncaughtException(thread, throwable)
     }

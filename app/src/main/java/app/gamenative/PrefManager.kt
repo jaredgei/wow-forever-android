@@ -14,9 +14,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import app.gamenative.enums.AppTheme
 import app.gamenative.ui.enums.Orientation
-import com.materialkolor.PaletteStyle
 import com.winlator.box86_64.Box86_64Preset
 import com.winlator.container.Container
 import com.winlator.core.DefaultVersion
@@ -54,8 +52,6 @@ object PrefManager {
     )
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private val favoritePersistenceLock = Any()
-    private var favoritePersistenceVersion = 0L
 
     private lateinit var dataStore: DataStore<Preferences>
 
@@ -119,14 +115,6 @@ object PrefManager {
         get() = getPref(COMPONENT_MANIFEST_FETCHED_AT, 0L)
         set(value) {
             setPref(COMPONENT_MANIFEST_FETCHED_AT, value)
-        }
-
-    /* PICS */
-    private val LAST_PICS_CHANGE_NUMBER = intPreferencesKey("last_pics_change_number")
-    var lastPICSChangeNumber: Int
-        get() = getPref(LAST_PICS_CHANGE_NUMBER, 0)
-        set(value) {
-            setPref(LAST_PICS_CHANGE_NUMBER, value)
         }
 
     /* Container Default Settings */
@@ -491,67 +479,11 @@ object PrefManager {
             setPref(PERFORMANCE_HUD_Y_FRACTION, value.coerceIn(-1f, 1f))
         }
 
-    private val LAUNCH_REAL_STEAM = booleanPreferencesKey("launch_real_steam")
-    var launchRealSteam: Boolean
-        get() = getPref(LAUNCH_REAL_STEAM, false)
-        set(value) {
-            setPref(LAUNCH_REAL_STEAM, value)
-        }
-
     private val SHOW_CONTROLLER_DEBUG_MENU = booleanPreferencesKey("show_controller_debug_menu")
     var showControllerDebugMenu: Boolean
         get() = getPref(SHOW_CONTROLLER_DEBUG_MENU, false)
         set(value) {
             setPref(SHOW_CONTROLLER_DEBUG_MENU, value)
-        }
-    private val LAUNCH_BIONIC_STEAM = booleanPreferencesKey("launch_bionic_steam")
-    var launchBionicSteam: Boolean
-        get() = getPref(LAUNCH_BIONIC_STEAM, false)
-        set(value) {
-            setPref(LAUNCH_BIONIC_STEAM, value)
-        }
-
-    private val FORCE_DLC = booleanPreferencesKey("force_dlc")
-    var forceDlc: Boolean
-        get() = getPref(FORCE_DLC, false)
-        set(value) {
-            setPref(FORCE_DLC, value)
-        }
-
-    private val LOCAL_SAVES_ONLY = booleanPreferencesKey("local_saves_only")
-    var localSavesOnly: Boolean
-        get() = getPref(LOCAL_SAVES_ONLY, false)
-        set(value) {
-            setPref(LOCAL_SAVES_ONLY, value)
-        }
-
-    private val STEAM_OFFLINE_MODE = booleanPreferencesKey("steam_offline_mode")
-    var steamOfflineMode: Boolean
-        get() = getPref(STEAM_OFFLINE_MODE, false)
-        set(value) {
-            setPref(STEAM_OFFLINE_MODE, value)
-        }
-
-    private val EPIC_OFFLINE_MODE = booleanPreferencesKey("epic_offline_mode")
-    var epicOfflineMode: Boolean
-        get() = getPref(EPIC_OFFLINE_MODE, false)
-        set(value) {
-            setPref(EPIC_OFFLINE_MODE, value)
-        }
-
-
-    private val USE_LEGACY_DRM = booleanPreferencesKey("use_legacy_drm")
-    var useLegacyDRM: Boolean
-        get() = getPref(USE_LEGACY_DRM, false)
-        set(value) {
-            setPref(USE_LEGACY_DRM, value)
-        }
-
-    private val UNPACK_FILES = booleanPreferencesKey("unpack_files")
-    var unpackFiles: Boolean
-        get() = getPref(UNPACK_FILES, false)
-        set(value) {
-            setPref(UNPACK_FILES, value)
         }
 
     private val FASTER_EXTERNAL_LOADING = booleanPreferencesKey("faster_external_loading")
@@ -688,13 +620,6 @@ object PrefManager {
         }
 
     // Controller Input Defaults
-    private val USE_STEAM_INPUT = booleanPreferencesKey("use_steam_input")
-    var useSteamInput: Boolean
-        get() = getPref(USE_STEAM_INPUT, false)
-        set(value) {
-            setPref(USE_STEAM_INPUT, value)
-        }
-
     private val XINPUT_ENABLED = booleanPreferencesKey("xinput_enabled")
     var xinputEnabled: Boolean
         get() = getPref(XINPUT_ENABLED, true)
@@ -771,90 +696,6 @@ object PrefManager {
         }
 
 
-    /* Recent Crash Flag */
-    private val RECENTLY_CRASHED = booleanPreferencesKey("recently_crashed")
-    var recentlyCrashed: Boolean
-        get() = getPref(RECENTLY_CRASHED, false)
-        set(value) {
-            setPref(RECENTLY_CRASHED, value)
-        }
-
-    /* Login Info */
-    private val CELL_ID = intPreferencesKey("cell_id")
-    private val CELL_ID_MANUALLY_SET = booleanPreferencesKey("cell_id_manually_set")
-
-    var cellId: Int
-        get() = getPref(CELL_ID, 0)
-        set(value) {
-            setPref(CELL_ID, value)
-            if (value == 0) {
-                setPref(CELL_ID_MANUALLY_SET, false)
-            }
-        }
-
-    var cellIdManuallySet: Boolean
-        get() = getPref(CELL_ID_MANUALLY_SET, false)
-        set(value) {
-            setPref(CELL_ID_MANUALLY_SET, value)
-        }
-
-    private val USER_NAME = stringPreferencesKey("user_name")
-    var username: String
-        get() = getPref(USER_NAME, "")
-        set(value) {
-            setPref(USER_NAME, value)
-        }
-
-    private val ACCESS_TOKEN_ENC = byteArrayPreferencesKey("access_token_enc")
-    var accessToken: String
-        get() {
-            val encryptedBytes = getPref(ACCESS_TOKEN_ENC, ByteArray(0))
-            return if (encryptedBytes.isEmpty()) {
-                ""
-            } else {
-                val bytes = Crypto.decrypt(encryptedBytes)
-                String(bytes)
-            }
-        }
-        set(value) {
-            val bytes = Crypto.encrypt(value.toByteArray())
-            setPref(ACCESS_TOKEN_ENC, bytes)
-        }
-
-    private val REFRESH_TOKEN_ENC = byteArrayPreferencesKey("refresh_token_enc")
-    var refreshToken: String
-        get() {
-            val encryptedBytes = getPref(REFRESH_TOKEN_ENC, ByteArray(0))
-            return if (encryptedBytes.isEmpty()) {
-                ""
-            } else {
-                val bytes = Crypto.decrypt(encryptedBytes)
-                String(bytes)
-            }
-        }
-        set(value) {
-            val bytes = Crypto.encrypt(value.toByteArray())
-            setPref(REFRESH_TOKEN_ENC, bytes)
-        }
-
-    // Special: Because null value.
-    private val CLIENT_ID = longPreferencesKey("client_id")
-    var clientId: Long?
-        get() = runBlocking {
-            try {
-                dataStore.data.first()[CLIENT_ID]
-            } catch (e: IOException) {
-                Timber.w(e, "Failed to read client_id preference")
-                null
-            }
-        }
-        set(value) {
-            scope.launch {
-                dataStore.edit { pref -> pref[CLIENT_ID] = value!! }
-            }
-        }
-
-
 
     private val ALLOWED_ORIENTATION = intPreferencesKey("allowed_orientation")
     var allowedOrientation: EnumSet<Orientation>
@@ -869,15 +710,6 @@ object PrefManager {
             setPref(ALLOWED_ORIENTATION, Orientation.toInt(value))
         }
 
-    private val TIPPED = booleanPreferencesKey("tipped")
-    var tipped: Boolean
-        get() {
-            val value = getPref(TIPPED, false)
-            return value
-        }
-        set(value) {
-            setPref(TIPPED, value)
-        }
 
     private val HAS_ATTEMPTED_GAME_LAUNCH = booleanPreferencesKey("has_attempted_game_launch")
     var hasAttemptedGameLaunch: Boolean
@@ -886,92 +718,8 @@ object PrefManager {
             setPref(HAS_ATTEMPTED_GAME_LAUNCH, value)
         }
 
-    private val LAST_LAUNCH_PITCH_TIME = longPreferencesKey("last_launch_pitch_time")
-    var lastLaunchPitchTime: Long
-        get() = getPref(LAST_LAUNCH_PITCH_TIME, 0L)
-        set(value) {
-            setPref(LAST_LAUNCH_PITCH_TIME, value)
-        }
-
-    private val LAST_WARM_PITCH_TIME = longPreferencesKey("last_warm_pitch_time")
-    var lastWarmPitchTime: Long
-        get() = getPref(LAST_WARM_PITCH_TIME, 0L)
-        set(value) {
-            setPref(LAST_WARM_PITCH_TIME, value)
-        }
-
-    private val DISCORD_RELAY_TOKEN = stringPreferencesKey("discord_relay_token")
-    private val DISCORD_RELAY_TOKEN_ENC = byteArrayPreferencesKey("discord_relay_token_enc")
-    val discordRelayTokenPresent = mutableStateOf(false)
-    var discordRelayToken: String
-        get() {
-            val encryptedBytes = getPref(DISCORD_RELAY_TOKEN_ENC, ByteArray(0))
-            if (encryptedBytes.isNotEmpty()) {
-                return String(Crypto.decrypt(encryptedBytes))
-            }
-            val legacy = getPref(DISCORD_RELAY_TOKEN, "")
-            if (legacy.isNotEmpty()) {
-                setPref(DISCORD_RELAY_TOKEN_ENC, Crypto.encrypt(legacy.toByteArray()))
-                removePref(DISCORD_RELAY_TOKEN)
-            }
-            return legacy
-        }
-        set(value) {
-            if (value.isEmpty()) {
-                removePref(DISCORD_RELAY_TOKEN_ENC)
-            } else {
-                setPref(DISCORD_RELAY_TOKEN_ENC, Crypto.encrypt(value.toByteArray()))
-            }
-            removePref(DISCORD_RELAY_TOKEN)
-            discordRelayTokenPresent.value = value.isNotEmpty()
-        }
-
-    private val DISCORD_OAUTH_NONCE = stringPreferencesKey("discord_oauth_nonce")
-    var discordOauthNonce: String
-        get() = getPref(DISCORD_OAUTH_NONCE, "")
-        set(value) {
-            setPref(DISCORD_OAUTH_NONCE, value)
-        }
-
-    private val APP_THEME = intPreferencesKey("app_theme")
-    var appTheme: AppTheme
-        get() {
-            val value = getPref(APP_THEME, AppTheme.AUTO.ordinal)
-            return AppTheme.entries.getOrNull(value) ?: AppTheme.AUTO
-        }
-        set(value) {
-            setPref(APP_THEME, value.ordinal)
-        }
-
-    private val APP_THEME_PALETTE = intPreferencesKey("app_theme_palette")
-    var appThemePalette: PaletteStyle
-        get() {
-            val value = getPref(APP_THEME_PALETTE, PaletteStyle.TonalSpot.ordinal)
-            return PaletteStyle.entries.getOrNull(value) ?: PaletteStyle.TonalSpot
-        }
-        set(value) {
-            setPref(APP_THEME_PALETTE, value.ordinal)
-        }
 
 
-
-    private val FRIENDS_LIST_HEADER = stringPreferencesKey("friends_list_header")
-    var friendsListHeader: Set<String>
-        get() {
-            val value = getPref(FRIENDS_LIST_HEADER, "[]")
-            return Json.decodeFromString<Set<String>>(value)
-        }
-        set(value) {
-            setPref(FRIENDS_LIST_HEADER, Json.encodeToString(value))
-        }
-
-    // NOTE: This should be removed once chat is considered stable.
-    private val ACK_CHAT_PREVIEW = booleanPreferencesKey("ack_chat_preview")
-    var ackChatPreview: Boolean
-        get() = getPref(ACK_CHAT_PREVIEW, false)
-        set(value) {
-            setPref(ACK_CHAT_PREVIEW, value)
-        }
 
     // Whether to open links internally with a webview or open externally with a user's browser.
     private val OPEN_WEB_LINKS_EXTERNALLY = booleanPreferencesKey("open_web_links_externally")
@@ -1014,15 +762,6 @@ object PrefManager {
         get() = getPref(WINE_DEBUG_CHANNELS, Constants.XServer.DEFAULT_WINE_DEBUG_CHANNELS)
         set(value) = setPref(WINE_DEBUG_CHANNELS, value)
 
-    private val USE_ALT_LAUNCHER_ICON = booleanPreferencesKey("use_alt_launcher_icon")
-    var useAltLauncherIcon: Boolean
-        get() = getPref(USE_ALT_LAUNCHER_ICON, false)
-        set(value) = setPref(USE_ALT_LAUNCHER_ICON, value)
-
-    private val USE_ALT_NOTIFICATION_ICON = booleanPreferencesKey("use_alt_notification_icon")
-    var useAltNotificationIcon: Boolean
-        get() = getPref(USE_ALT_NOTIFICATION_ICON, false)
-        set(value) = setPref(USE_ALT_NOTIFICATION_ICON, value)
 
     private val APP_LANGUAGE = stringPreferencesKey("app_language")
     var appLanguage: String

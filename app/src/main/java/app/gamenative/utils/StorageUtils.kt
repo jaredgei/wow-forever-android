@@ -8,45 +8,6 @@ import timber.log.Timber
 import java.io.File
 
 object StorageUtils {
-
-    private const val PUBLIC_INSTALL_DIR_NAME = "GameNative"
-
-    fun publicInstallRoot(appFilesDir: File): File? {
-        val path = appFilesDir.absolutePath
-        val idx = path.indexOf("/Android/data/")
-        if (idx <= 0) return null
-        return File(path.substring(0, idx), PUBLIC_INSTALL_DIR_NAME)
-    }
-
-    fun ensureInstallRoot(dir: File): Boolean {
-        if (!dir.isDirectory && !dir.mkdirs()) return false
-        runCatching { File(dir, ".nomedia").createNewFile() }
-        return true
-    }
-
-    fun resolveLegacyGameDir(path: String?): String? {
-        if (path.isNullOrBlank()) return path
-        val idx = path.indexOf("/Android/data/")
-        if (idx <= 0) return path
-        val filesIdx = path.indexOf("/files/", idx)
-        if (filesIdx < 0) return path
-        val legacyRoot = File(path.substring(0, filesIdx + "/files".length))
-        val rel = path.substring(filesIdx + "/files/".length)
-        val src = File(path)
-        val publicRoot = publicInstallRoot(legacyRoot) ?: return path
-        val dst = File(publicRoot, rel)
-        if (!src.isDirectory) return if (dst.isDirectory) dst.absolutePath else path
-        if (dst.exists() || !ensureInstallRoot(publicRoot)) return path
-        dst.parentFile?.mkdirs()
-        return if (src.renameTo(dst)) {
-            Timber.i("Migrated game dir $path to ${dst.absolutePath}")
-            dst.absolutePath
-        } else {
-            Timber.w("Could not migrate $path; leaving in place")
-            path
-        }
-    }
-
     fun hasStoragePermission(context: Context, path: String): Boolean {
         val isOutsideSandbox = !path.contains("/Android/data/${context.packageName}") &&
             !path.contains(context.dataDir.path)

@@ -1415,3 +1415,17 @@ private fun formatPercent(value: Float): String {
     val rounded = value.toInt()
     return if (rounded > 0) "+${rounded}%" else "${rounded}%"
 }
+
+@Composable
+fun OptionSectionHeader(
+    text: String,
+    modifier: Modifier = Modifier,
+) {
+    Text(
+        text = text.uppercase(),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+        letterSpacing = MaterialTheme.typography.labelMedium.letterSpacing * 1.5f,
+        modifier = modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+    )
+}

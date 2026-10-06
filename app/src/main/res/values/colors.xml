@@ -4,7 +4,6 @@
     <color name="colorPrimary">#a21caf</color>
     <color name="colorPrimaryDark">#455a64</color>
     <color name="colorAccent">#06B6D4</color>
-    <color name="navigation_dialog_item_color">#FAFAFA</color>
     <color name="external_display_surface_background">#000000</color>
     <color name="external_display_keyboard_background">#000000</color>
     <color name="external_display_key_background">#161616</color>

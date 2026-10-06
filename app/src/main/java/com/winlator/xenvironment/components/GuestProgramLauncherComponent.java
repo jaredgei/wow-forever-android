@@ -328,19 +328,7 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
         Context context = environment.getContext();
         ImageFs imageFs = ImageFs.find(context);
         File rootDir = imageFs.getRootDir();
-        String assetPath;
-        switch (steamType) {
-            case Container.STEAM_TYPE_LIGHT:
-                assetPath = "box86_64/lightsteam.box64rc";
-                break;
-            case Container.STEAM_TYPE_ULTRALIGHT:
-                assetPath = "box86_64/ultralightsteam.box64rc";
-                break;
-            default:
-                assetPath = "box86_64/default.box64rc";
-                break;
-        }
-        FileUtils.copy(context, assetPath, new File(rootDir, "/etc/config.box64rc"));
+        FileUtils.copy(context, "box86_64/default.box64rc", new File(rootDir, "/etc/config.box64rc"));
     }
 
     private void addBox86EnvVars(EnvVars envVars, boolean enableLogs) {

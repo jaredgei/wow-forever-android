@@ -1,19 +1,12 @@
 package com.winlator.box86_64;
 
 import android.content.Context;
-import android.widget.ArrayAdapter;
-import android.widget.Spinner;
-import android.widget.SpinnerAdapter;
-
 import app.gamenative.R;
 import com.winlator.PrefManager;
 import com.winlator.core.envvars.EnvVars;
-
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Locale;
-
-import timber.log.Timber;
 
 public abstract class Box86_64PresetManager {
     public static EnvVars getEnvVars(String prefix, Context context, String id) {
@@ -173,109 +166,5 @@ public abstract class Box86_64PresetManager {
                 return customPresets[index[0]++].split("\\|");
             }
         };
-    }
-
-    public static int getNextPresetId(Context context, String prefix) {
-        int maxId = 0;
-        for (String[] preset : customPresetsIterator(prefix, context)) {
-            maxId = Math.max(maxId, Integer.parseInt(preset[0].replace(Box86_64Preset.CUSTOM + "-", "")));
-        }
-        return maxId + 1;
-    }
-
-    public static String editPreset(String prefix, Context context, String id, String name, EnvVars envVars) {
-        String key = prefix + "_custom_presets";
-        PrefManager.init(context);
-        String customPresetsStr = PrefManager.getString(key, "");
-        String presetId = id;
-
-        if (presetId != null) {
-            String[] customPresets = customPresetsStr.split(",");
-            for (int i = 0; i < customPresets.length; i++) {
-                String[] preset = customPresets[i].split("\\|");
-                if (preset[0].equals(presetId)) {
-                    customPresets[i] = presetId + "|" + name + "|" + envVars.toString();
-                    break;
-                }
-            }
-            customPresetsStr = String.join(",", customPresets);
-        } else {
-            presetId = Box86_64Preset.CUSTOM + "-" + getNextPresetId(context, prefix);
-            String preset = presetId + "|" + name + "|" + envVars.toString();
-            customPresetsStr += (!customPresetsStr.isEmpty() ? "," : "") + preset;
-        }
-        try {
-            PrefManager.putString(key, customPresetsStr).get();
-        } catch (Exception e) {
-            Timber.e("Failed to edit preset: " + e);
-        }
-        return presetId;
-    }
-
-    public static String duplicatePreset(String prefix, Context context, String id) {
-        ArrayList<Box86_64Preset> presets = getPresets(prefix, context);
-        Box86_64Preset originPreset = null;
-        for (Box86_64Preset preset : presets) {
-            if (preset.id.equals(id)) {
-                originPreset = preset;
-                break;
-            }
-        }
-        if (originPreset == null) return null;
-
-        String newName;
-        for (int i = 1; ; i++) {
-            newName = originPreset.name + " (" + i + ")";
-            boolean found = false;
-            for (Box86_64Preset preset : presets) {
-                if (preset.name.equals(newName)) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) break;
-        }
-
-        return editPreset(prefix, context, null, newName, getEnvVars(prefix, context, originPreset.id));
-    }
-
-    public static void removePreset(String prefix, Context context, String id) {
-        String key = prefix + "_custom_presets";
-        PrefManager.init(context);
-        String oldCustomPresetsStr = PrefManager.getString(key, "");
-        String newCustomPresetsStr = "";
-
-        String[] customPresets = oldCustomPresetsStr.split(",");
-        for (int i = 0; i < customPresets.length; i++) {
-            String[] preset = customPresets[i].split("\\|");
-            if (!preset[0].equals(id))
-                newCustomPresetsStr += (!newCustomPresetsStr.isEmpty() ? "," : "") + customPresets[i];
-        }
-
-        PrefManager.putString(key, newCustomPresetsStr);
-    }
-
-    public static void loadSpinner(String prefix, Spinner spinner, String selectedId) {
-        Context context = spinner.getContext();
-        ArrayList<Box86_64Preset> presets = getPresets(prefix, context);
-
-        int selectedPosition = 0;
-        for (int i = 0; i < presets.size(); i++) {
-            if (presets.get(i).id.equals(selectedId)) {
-                selectedPosition = i;
-                break;
-            }
-        }
-
-        spinner.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, presets));
-        spinner.setSelection(selectedPosition);
-    }
-
-    public static String getSpinnerSelectedId(Spinner spinner) {
-        SpinnerAdapter adapter = spinner.getAdapter();
-        int selectedPosition = spinner.getSelectedItemPosition();
-        if (adapter != null && adapter.getCount() > 0 && selectedPosition >= 0) {
-            return ((Box86_64Preset) adapter.getItem(selectedPosition)).id;
-        } else return Box86_64Preset.COMPATIBILITY;
     }
 }

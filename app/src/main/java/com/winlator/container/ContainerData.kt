@@ -33,9 +33,6 @@ data class ContainerData(
     val executablePath: String = "",
     val installPath: String = "",
     val showFPS: Boolean = false,
-    val launchRealSteam: Boolean = false,
-    val launchBionicSteam: Boolean = false,
-    val allowSteamUpdates: Boolean = false,
     val steamType: String = Container.STEAM_TYPE_HEADLESS,
     val cpuList: String = Container.getFallbackCPUList(),
     val cpuListWoW64: String = Container.getFallbackCPUListWoW64(),
@@ -74,48 +71,24 @@ data class ContainerData(
     val sdlControllerAPI: Boolean = true,
     val fasterExternalLoading: Boolean = false,
     val disableLibredirect: Boolean = false,
-    /** Enable Steam Input **/
-    val useSteamInput: Boolean = false,
-    /** Enable XInput API **/
     val enableXInput: Boolean = true,
-    /** Enable DirectInput API **/
     val enableDInput: Boolean = true,
-    /** DirectInput mapper type: 1=standard, 2=XInput mapper **/
     val dinputMapperType: Byte = 1,
-    /** Disable external mouse input **/
     val disableMouseInput: Boolean = false,
-    /** Touchscreen mode (defaults on for XR builds) **/
     val touchscreenMode: Boolean = app.gamenative.BuildConfig.XR_BUILD,
-    /** Shooter mode (auto-replace sticks with dynamic joysticks) **/
     val shooterMode: Boolean = true,
-    /** Serialised JSON gesture configuration (used when touchscreenMode is true) **/
     val gestureConfig: String = "",
-    /** Serialised JSON shooter mode configuration (used when shooterMode is true) **/
     val shooterConfig: String = "",
-    /** External display input handling: off|touchpad|keyboard|hybrid **/
     val externalDisplayMode: String = Container.DEFAULT_EXTERNAL_DISPLAY_MODE,
-    /** Swap game/input between internal and external displays **/
     val externalDisplaySwap: Boolean = false,
-    /** Preferred game language (Goldberg) **/
     val language: String = "english",
-    val forceDlc: Boolean = false,
-    val localSavesOnly: Boolean = false,
-    val steamOfflineMode: Boolean = false,
-    val epicOfflineMode: Boolean = false,
-    val disableEpicOverlay: Boolean = false,
-    val useLegacyDRM: Boolean = false,
-    val unpackFiles: Boolean = false,
     val suspendPolicy: String = Container.SUSPEND_POLICY_MANUAL,
     val portraitMode: Boolean = false,
     val portraitBelowCutout: Boolean = false,
     val sharpnessEffect: String = "None",
     val sharpnessLevel: Int = 100,
     val sharpnessDenoise: Int = 100,
-    // LSFG Vulkan frame generation
-    /** Whether LSFG frame generation is enabled for this container */
     val lsfgEnabled: Boolean = false,
-    val windowsVrEnabled: Boolean = false,
-    val openCompositeEnabled: Boolean = false,
 ) {
     companion object {
         val Saver = mapSaver(
@@ -143,9 +116,6 @@ data class ContainerData(
                     "executablePath" to state.executablePath,
                     "installPath" to state.installPath,
                     "showFPS" to state.showFPS,
-                    "launchRealSteam" to state.launchRealSteam,
-                    "launchBionicSteam" to state.launchBionicSteam,
-                    "allowSteamUpdates" to state.allowSteamUpdates,
                     "steamType" to state.steamType,
                     "cpuList" to state.cpuList,
                     "cpuListWoW64" to state.cpuListWoW64,
@@ -167,7 +137,6 @@ data class ContainerData(
                     "sdlControllerAPI" to state.sdlControllerAPI,
                     "fasterExternalLoading" to state.fasterExternalLoading,
                     "disableLibredirect" to state.disableLibredirect,
-                    "useSteamInput" to state.useSteamInput,
                     "enableXInput" to state.enableXInput,
                     "enableDInput" to state.enableDInput,
                     "dinputMapperType" to state.dinputMapperType,
@@ -180,12 +149,6 @@ data class ContainerData(
                     "externalDisplaySwap" to state.externalDisplaySwap,
                     "useDRI3" to state.useDRI3,
                     "language" to state.language,
-                    "forceDlc" to state.forceDlc,
-                    "localSavesOnly" to state.localSavesOnly,
-                    "steamOfflineMode" to state.steamOfflineMode,
-                    "epicOfflineMode" to state.epicOfflineMode,
-                    "useLegacyDRM" to state.useLegacyDRM,
-                    "unpackFiles" to state.unpackFiles,
                     "suspendPolicy" to state.suspendPolicy,
                     "portraitMode" to state.portraitMode,
                     "portraitBelowCutout" to state.portraitBelowCutout,
@@ -193,8 +156,6 @@ data class ContainerData(
                     "sharpnessLevel" to state.sharpnessLevel,
                     "sharpnessDenoise" to state.sharpnessDenoise,
                     "lsfgEnabled" to state.lsfgEnabled,
-                    "windowsVrEnabled" to state.windowsVrEnabled,
-                    "openCompositeEnabled" to state.openCompositeEnabled,
                 )
             },
             restore = { savedMap ->
@@ -221,9 +182,6 @@ data class ContainerData(
                     executablePath = savedMap["executablePath"] as String,
                     installPath = savedMap["installPath"] as String,
                     showFPS = savedMap["showFPS"] as Boolean,
-                    launchRealSteam = savedMap["launchRealSteam"] as Boolean,
-                    launchBionicSteam = (savedMap["launchBionicSteam"] as? Boolean) ?: false,
-                    allowSteamUpdates = savedMap["allowSteamUpdates"] as Boolean,
                     steamType = (savedMap["steamType"] as? String) ?: Container.STEAM_TYPE_HEADLESS,
                     cpuList = savedMap["cpuList"] as String,
                     cpuListWoW64 = savedMap["cpuListWoW64"] as String,
@@ -245,7 +203,6 @@ data class ContainerData(
                     sdlControllerAPI = savedMap["sdlControllerAPI"] as Boolean,
                     fasterExternalLoading = (savedMap["fasterExternalLoading"] as? Boolean) ?: false,
                     disableLibredirect = (savedMap["disableLibredirect"] as? Boolean) ?: false,
-                    useSteamInput = (savedMap["useSteamInput"] as? Boolean) ?: false,
                     enableXInput = savedMap["enableXInput"] as Boolean,
                     enableDInput = savedMap["enableDInput"] as Boolean,
                     dinputMapperType = savedMap["dinputMapperType"] as Byte,
@@ -258,12 +215,6 @@ data class ContainerData(
                     externalDisplaySwap = (savedMap["externalDisplaySwap"] as? Boolean) ?: false,
                     useDRI3 = (savedMap["useDRI3"] as? Boolean) ?: true,
                     language = (savedMap["language"] as? String) ?: "english",
-                    forceDlc = (savedMap["forceDlc"] as? Boolean) ?: false,
-                    localSavesOnly = (savedMap["localSavesOnly"] as? Boolean) ?: false,
-                    steamOfflineMode = (savedMap["steamOfflineMode"] as? Boolean) ?: false,
-                    epicOfflineMode = (savedMap["epicOfflineMode"] as? Boolean) ?: false,
-                    useLegacyDRM = (savedMap["useLegacyDRM"] as? Boolean) ?: false,
-                    unpackFiles = (savedMap["unpackFiles"] as? Boolean) ?: false,
                     suspendPolicy = (savedMap["suspendPolicy"] as? String) ?: Container.SUSPEND_POLICY_MANUAL,
                     portraitMode = (savedMap["portraitMode"] as? Boolean) ?: false,
                     portraitBelowCutout = (savedMap["portraitBelowCutout"] as? Boolean) ?: false,
@@ -271,8 +222,6 @@ data class ContainerData(
                     sharpnessLevel = (savedMap["sharpnessLevel"] as? Int) ?: 100,
                     sharpnessDenoise = (savedMap["sharpnessDenoise"] as? Int) ?: 100,
                     lsfgEnabled = (savedMap["lsfgEnabled"] as? Boolean) ?: false,
-                    windowsVrEnabled = (savedMap["windowsVrEnabled"] as? Boolean) ?: false,
-                    openCompositeEnabled = (savedMap["openCompositeEnabled"] as? Boolean) ?: false,
                 )
             },
         )

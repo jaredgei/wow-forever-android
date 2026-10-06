@@ -7,9 +7,6 @@ import androidx.lifecycle.viewModelScope
 import app.gamenative.PluviaApp
 import app.gamenative.PrefManager
 import app.gamenative.R
-import app.gamenative.data.GameSource
-import app.gamenative.di.IAppTheme
-import app.gamenative.enums.AppTheme
 import app.gamenative.events.AndroidEvent
 import app.gamenative.ui.enums.Orientation
 import java.util.EnumSet
@@ -17,9 +14,7 @@ import app.gamenative.ui.data.MainState
 import app.gamenative.ui.screen.PluviaScreen
 import app.gamenative.ui.util.SnackbarManager
 import app.gamenative.utils.ContainerUtils
-import app.gamenative.utils.IntentLaunchManager
 import app.gamenative.utils.WineProcessSnapshotHelper
-import com.materialkolor.PaletteStyle
 import com.winlator.xserver.Window
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -41,7 +36,6 @@ import timber.log.Timber
 @HiltViewModel
 class MainViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
-    private val appTheme: IAppTheme,
 ) : ViewModel() {
 
     companion object {
@@ -51,12 +45,9 @@ class MainViewModel @Inject constructor(
             private set
     }
 
-    private var gameSessionStartTime = 0L
-
     sealed class MainUiEvent {
         data object OnBackPressed : MainUiEvent()
         data object LaunchApp : MainUiEvent()
-        data class ExternalGameLaunch(val appId: String) : MainUiEvent()
     }
 
     private val _state = MutableStateFlow(MainState())
@@ -78,13 +69,6 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    private val onExternalGameLaunch: (AndroidEvent.ExternalGameLaunch) -> Unit = {
-        Timber.tag("MainViewModel").i("Received external game launch event for app ${it.appId}")
-        viewModelScope.launch {
-            Timber.tag("MainViewModel").i("Sending ExternalGameLaunch UI event for app ${it.appId}")
-            _uiEvent.send(MainUiEvent.ExternalGameLaunch(it.appId))
-        }
-    }
 
     private val onSetBootingSplashText: (AndroidEvent.SetBootingSplashText) -> Unit = {
         if (_state.value.showBootingSplash) {
@@ -101,7 +85,6 @@ class MainViewModel @Inject constructor(
     private var bootingSplashTimeoutJob: Job? = null
 
     init {
-        // Restore persisted screen from SavedStateHandle if available
         val persistedRoute = savedStateHandle.get<String>(KEY_CURRENT_SCREEN_ROUTE)
         val restoredScreen = when (persistedRoute) {
             PluviaScreen.XServer.route -> PluviaScreen.XServer
@@ -110,45 +93,20 @@ class MainViewModel @Inject constructor(
 
         _state.update {
             it.copy(
-                hasCrashedLastStart = PrefManager.recentlyCrashed,
                 launchedAppId = "",
                 currentScreen = restoredScreen,
             )
         }
 
-        // Register event handlers
         PluviaApp.events.on<AndroidEvent.BackPressed, Unit>(onBackPressed)
-        PluviaApp.events.on<AndroidEvent.ExternalGameLaunch, Unit>(onExternalGameLaunch)
         PluviaApp.events.on<AndroidEvent.SetBootingSplashText, Unit>(onSetBootingSplashText)
         PluviaApp.events.on<AndroidEvent.ClearBootingSplash, Unit>(onClearBootingSplash)
-
-        // Collect theme preferences
-        viewModelScope.launch {
-            appTheme.themeFlow.collect { value ->
-                _state.update { it.copy(appTheme = value) }
-            }
-        }
-
-        viewModelScope.launch {
-            appTheme.paletteFlow.collect { value ->
-                _state.update { it.copy(paletteStyle = value) }
-            }
-        }
     }
 
     override fun onCleared() {
         PluviaApp.events.off<AndroidEvent.BackPressed, Unit>(onBackPressed)
-        PluviaApp.events.off<AndroidEvent.ExternalGameLaunch, Unit>(onExternalGameLaunch)
         PluviaApp.events.off<AndroidEvent.SetBootingSplashText, Unit>(onSetBootingSplashText)
         PluviaApp.events.off<AndroidEvent.ClearBootingSplash, Unit>(onClearBootingSplash)
-    }
-
-    fun setTheme(value: AppTheme) {
-        appTheme.currentTheme = value
-    }
-
-    fun setPalette(value: PaletteStyle) {
-        appTheme.currentPalette = value
     }
 
     fun setLoadingDialogVisible(value: Boolean) {
@@ -196,13 +154,6 @@ class MainViewModel @Inject constructor(
         savedStateHandle[KEY_CURRENT_SCREEN_ROUTE] = value.route
     }
 
-    fun setHasCrashedLastStart(value: Boolean) {
-        if (value.not()) {
-            PrefManager.recentlyCrashed = false
-        }
-        _state.update { it.copy(hasCrashedLastStart = value) }
-    }
-
     fun setScreen() {
         _state.update { it.copy(resettedScreen = it.currentScreen) }
     }
@@ -211,26 +162,9 @@ class MainViewModel @Inject constructor(
         _state.update { it.copy(launchedAppId = value) }
     }
 
-    fun setBootToContainer(value: Boolean) {
-        _state.update { it.copy(bootToContainer = value) }
-    }
-
-    fun setTestGraphics(value: Boolean) {
-        _state.update { it.copy(testGraphics = value) }
-    }
-
-    fun setDiagnostics(value: Boolean) {
-        _state.update { it.copy(diagnostics = value) }
-    }
-
-    fun setDebugRun(value: Boolean) {
-        _state.update { it.copy(debugRun = value) }
-    }
-
     private var launchAppJob: Job? = null
 
     fun launchApp(context: Context, appId: String) {
-        gameSessionStartTime = System.currentTimeMillis()
         gamePlayedThisSession = true
         PrefManager.hasAttemptedGameLaunch = true
         launchAppJob?.cancel()
@@ -252,20 +186,13 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun exitSteamApp(context: Context, appId: String, onComplete: (() -> Unit)? = null) {
+    fun exitApp(context: Context, appId: String, onComplete: (() -> Unit)? = null) {
         viewModelScope.launch {
             try {
                 bootingSplashTimeoutJob?.cancel()
                 bootingSplashTimeoutJob = null
                 setShowBootingSplash(false)
                 PluviaApp.events.emit(AndroidEvent.ClearBootingSplash)
-                if (IntentLaunchManager.hasTemporaryOverride(appId)) {
-                    PluviaApp.events.emit(AndroidEvent.PromptSaveContainerConfig(appId))
-                }
-                gameSessionStartTime = 0L
-                if (_state.value.debugRun) {
-                    setDebugRun(false)
-                }
             } finally {
                 onComplete?.invoke()
             }

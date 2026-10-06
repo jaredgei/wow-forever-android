@@ -13,7 +13,6 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import com.alorma.compose.settings.ui.base.internal.SettingsTileColors
 import com.alorma.compose.settings.ui.base.internal.SettingsTileDefaults
-import com.materialkolor.PaletteStyle
 
 /**
  * Custom color system for Pluvia, extending Material3.
@@ -162,15 +161,8 @@ private val DarkColorScheme = darkColorScheme(
 
 @Composable
 fun PluviaTheme(
-    seedColor: Color = PluviaSeed,
-    isDark: Boolean = true, // for now, always force dark theme
-    isAmoled: Boolean = false,
-    style: PaletteStyle = PaletteStyle.TonalSpot,
     content: @Composable () -> Unit,
 ) {
-    val colorScheme = DarkColorScheme
-    val pluviaColors = if (isDark) DarkPluviaColors else DarkPluviaColors // We can use LightPluviaColors when ready
-
     val view = LocalView.current
     if (!view.isInEditMode) {
         val window = (view.context as Activity).window
@@ -179,9 +171,9 @@ fun PluviaTheme(
         insetsController.isAppearanceLightNavigationBars = false
     }
 
-    CompositionLocalProvider(LocalPluviaColors provides pluviaColors) {
+    CompositionLocalProvider(LocalPluviaColors provides DarkPluviaColors) {
         MaterialTheme(
-            colorScheme = colorScheme,
+            colorScheme = DarkColorScheme,
             typography = PluviaTypography,
             content = content,
         )

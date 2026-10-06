@@ -2,7 +2,6 @@ package com.winlator.xenvironment.components;
 
 import android.content.Context;
 import androidx.annotation.Keep;
-import com.winlator.contentdialog.VortekConfigDialog;
 import com.winlator.core.GPUHelper;
 import com.winlator.core.GeneralComponents;
 import com.winlator.core.KeyValueSet;
@@ -23,6 +22,7 @@ import java.util.Objects;
 
 public class VortekRendererComponent extends EnvironmentComponent implements ConnectionHandler, RequestHandler {
     public static final int VK_MAX_VERSION = GPUHelper.vkMakeVersion(1, 3, 128);
+    public static final String DEFAULT_VK_MAX_VERSION = GPUHelper.vkVersionMajor(VK_MAX_VERSION) + "." + GPUHelper.vkVersionMinor(VK_MAX_VERSION);
     private XConnectorEpoll connector;
     private final Options options;
     private final UnixSocketConfig socketConfig;
@@ -58,7 +58,7 @@ public class VortekRendererComponent extends EnvironmentComponent implements Con
             if (!exposedDeviceExtensions.isEmpty() && !exposedDeviceExtensions.equals("all")) {
                 options.exposedDeviceExtensions = exposedDeviceExtensions.split("\\|");
             }
-            String str = VortekConfigDialog.DEFAULT_VK_MAX_VERSION;
+            String str = DEFAULT_VK_MAX_VERSION;
             String vkMaxVersion = config.get("vkMaxVersion", str);
             if (!vkMaxVersion.equals(str)) {
                 String[] parts = vkMaxVersion.split("\\.");

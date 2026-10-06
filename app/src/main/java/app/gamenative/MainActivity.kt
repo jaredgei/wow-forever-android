@@ -32,58 +32,16 @@ import app.gamenative.ui.PluviaMain
 import app.gamenative.ui.enums.Orientation
 import app.gamenative.ui.util.LocalSnackbarHostController
 import app.gamenative.ui.util.SnackbarHostController
-import app.gamenative.data.GameSource
-import app.gamenative.utils.ContainerUtils
-import app.gamenative.utils.IntentLaunchManager
 import app.gamenative.utils.LocaleHelper
 import app.gamenative.ui.util.SnackbarManager
 import com.winlator.core.AppUtils
 import com.winlator.inputcontrols.ControllerManager
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
 import java.util.EnumSet
 import timber.log.Timber
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-    companion object {
-        private var totalIndex = 0
-
-        // Store pending launch request to be processed after UI is ready
-        @Volatile
-        private var pendingLaunchRequest: IntentLaunchManager.LaunchRequest? = null
-
-        // Atomically get and clear the pending launch request
-        fun consumePendingLaunchRequest(): IntentLaunchManager.LaunchRequest? {
-            synchronized(this) {
-                val request = pendingLaunchRequest
-                Timber.d("[IntentLaunch]: Consuming pending launch request for app ${request?.appId}")
-                pendingLaunchRequest = null
-                return request
-            }
-        }
-
-        // Atomically set a new pending launch request
-        fun setPendingLaunchRequest(request: IntentLaunchManager.LaunchRequest) {
-            synchronized(this) {
-                Timber.d("[IntentLaunch]: Setting pending launch request for app ${request?.appId}")
-                pendingLaunchRequest = request
-            }
-        }
-
-        fun hasPendingLaunchRequest(): Boolean {
-            return pendingLaunchRequest != null
-        }
-
-        fun peekPendingLaunchRequest(): IntentLaunchManager.LaunchRequest? {
-            synchronized(this) {
-                return pendingLaunchRequest
-            }
-        }
-
-        @Volatile
-        var wasLaunchedViaExternalIntent: Boolean = false
-    }
 
     private val onSetSystemUi: (AndroidEvent.SetSystemUIVisibility) -> Unit = {
         desiredSystemUiVisible = it.visible
@@ -112,8 +70,6 @@ class MainActivity : ComponentActivity() {
             ControllerManager.getInstance().onDeviceConnected(deviceId)
         }
     }
-
-    private var index = totalIndex++
 
     private var desiredSystemUiVisible: Boolean = false
 
@@ -148,10 +104,6 @@ class MainActivity : ComponentActivity() {
         ControllerManager.getInstance().init(applicationContext)
         controllerInputManager = getSystemService(Context.INPUT_SERVICE) as InputManager
         controllerInputManager?.registerInputDeviceListener(controllerDeviceListener, null)
-
-        handleLaunchIntent(intent)
-
-        // Prevent device from sleeping while app is open
         AppUtils.keepScreenOn(this)
 
         PluviaApp.events.on<AndroidEvent.SetSystemUIVisibility, Unit>(onSetSystemUi)
@@ -167,51 +119,6 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        handleLaunchIntent(intent, isNewIntent = true)
-    }
-
-    private fun handleLaunchIntent(intent: Intent, isNewIntent: Boolean = false) {
-        // recents re-delivers the same intent with this flag — don't re-launch
-        if (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) {
-            Timber.d("[IntentLaunch]: Ignoring intent re-delivered from recents")
-            return
-        }
-        Timber.d("[IntentLaunch]: handleLaunchIntent called with action=${intent.action}, isNewIntent=$isNewIntent")
-        try {
-            val launchRequest = IntentLaunchManager.parseLaunchIntent(intent)
-            if (launchRequest != null) {
-                Timber.d("[IntentLaunch]: Received external launch intent for app ${launchRequest.appId}")
-
-                if (isNewIntent) {
-                    // supersedes any stale pending request
-                    consumePendingLaunchRequest()
-                    // UI is already up — emit directly, ViewModel listener exists
-                    Timber.d("[IntentLaunch]: Emitting ExternalGameLaunch event for app ${launchRequest.appId}")
-                    launchRequest.containerConfig?.let { config ->
-                        IntentLaunchManager.applyTemporaryConfigOverride(this, launchRequest.appId, config)
-                    }
-                    lifecycleScope.launch {
-                        PluviaApp.events.emit(AndroidEvent.ExternalGameLaunch(launchRequest.appId))
-                    }
-                } else {
-                    // cold start — store as pending, PluviaMain consumes when UI is ready
-                    setPendingLaunchRequest(launchRequest)
-                    Timber.d("[IntentLaunch]: Stored pending launch request for app ${launchRequest.appId}")
-                }
-            } else if (intent.action == "${BuildConfig.APPLICATION_ID}.LAUNCH_GAME") {
-                // intent matched our action but failed to parse — tell the user
-                wasLaunchedViaExternalIntent = false
-                Timber.w("[IntentLaunch]: parseLaunchIntent returned null for LAUNCH_GAME intent")
-                SnackbarManager.show(getString(R.string.intent_launch_failed))
-            }
-        } catch (e: Exception) {
-            Timber.e(e, "[IntentLaunch]: Failed to handle launch intent")
-        }
-    }
-
     override fun onDestroy() {
         // emit before super so Compose DisposableEffects (which unregister
         // listeners during super.onDestroy's lifecycle transition) still fire
@@ -304,38 +211,18 @@ class MainActivity : ComponentActivity() {
         super.onPause()
     }
 
-    // override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-    //     // Log.d("MainActivity$index", "onKeyDown($keyCode):\n$event")
-    //     if (keyCode == KeyEvent.KEYCODE_BACK) {
-    //         PluviaApp.events.emit(AndroidEvent.BackPressed)
-    //         return true
-    //     }
-    //     return super.onKeyDown(keyCode, event)
-    // }
-
     @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        // Log.d("MainActivity$index", "dispatchKeyEvent(${event.keyCode}):\n$event")
-
         var eventDispatched = PluviaApp.events.emit(AndroidEvent.KeyEvent(event)) { keyEvent ->
             keyEvent.any { it }
         } == true
 
-        // TODO: Temp'd removed this.
-        //  Idealy, compose handles back presses automaticially in which we can override it in certain composables.
-        //  Since LibraryScreen uses its own navigation system, this will need to be re-worked accordingly.
         if (!eventDispatched) {
             if (event.keyCode == KeyEvent.KEYCODE_BACK && PluviaApp.keepAlive) {
                 if (event.action == KeyEvent.ACTION_DOWN) {
                     PluviaApp.events.emit(AndroidEvent.BackPressed)
                     eventDispatched = true
                 } else if (BuildConfig.MODERN_ANDROID && event.action == KeyEvent.ACTION_UP) {
-                    // Modern only: swallow BACK UP so super.dispatchKeyEvent doesn't
-                    // forward it to OnBackPressedDispatcher, which would double-fire
-                    // XServerScreen's BackHandler and immediately dismiss the quick
-                    // menu the DOWN event just opened.
-                    // Legacy must NOT swallow UP — master relies on UP falling through
-                    // so any KeyEvent consumers (controller code, etc.) see it.
                     eventDispatched = true
                 }
             }
@@ -345,8 +232,6 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun dispatchGenericMotionEvent(ev: MotionEvent?): Boolean {
-        // Log.d("MainActivity$index", "dispatchGenericMotionEvent(${ev?.deviceId}:${ev?.device?.name}):\n$ev")
-
         val eventDispatched = PluviaApp.events.emit(AndroidEvent.MotionEvent(ev)) { event ->
             event.any { it }
         } == true

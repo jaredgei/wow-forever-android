@@ -98,9 +98,6 @@ public class Container {
     private String wineVersion = WineInfo.MAIN_WINE_VERSION.identifier();
     private boolean showFPS;
     private boolean launchImmersiveMode = app.gamenative.BuildConfig.XR_BUILD;
-    private boolean launchRealSteam;
-    private boolean launchBionicSteam;
-    private boolean allowSteamUpdates;
     private boolean wow64Mode = true;
     private boolean needsUnpacking = true;
     private byte startupSelection = STARTUP_SELECTION_AGGRESSIVE;
@@ -118,9 +115,6 @@ public class Container {
     private String installPath = "";
     private JSONObject extraData;
     private JSONObject sessionMetadata;
-    private String configSource = "";
-    private int rcfileId = 0;
-    private String midiSoundFont = "";
     private int inputType = WinHandler.PreferredInputApi.BOTH.ordinal();
     private String lc_all = "en_US.utf8";
     private int primaryController = 1;
@@ -133,7 +127,6 @@ public class Container {
     private boolean sdlControllerAPI;
     private boolean fasterExternalLoading;
     private boolean disableLibredirect;
-    private boolean disableEpicOverlay;
 
     // Preferred game language for Goldberg force_language.txt
     private String language = "english";
@@ -162,18 +155,6 @@ public class Container {
     private String steamType = DefaultVersion.STEAM_TYPE;
 
     private boolean gstreamerWorkaround = false;
-
-    private boolean forceDlc = false;
-
-    private boolean localSavesOnly = false;
-
-    private boolean steamOfflineMode = false;
-
-    private boolean epicOfflineMode = false;
-
-    private boolean useLegacyDRM = false;
-
-    private boolean unpackFiles = false;
 
     private String suspendPolicy = SUSPEND_POLICY_MANUAL;
 
@@ -391,35 +372,6 @@ public class Container {
         this.launchImmersiveMode = launchImmersiveMode;
     }
 
-    public boolean isLaunchRealSteam() {
-        return launchRealSteam;
-    }
-
-    public void setLaunchRealSteam(boolean launchRealSteam) {
-        this.launchRealSteam = launchRealSteam;
-    }
-
-    /** Real Steam through the headless steamhost rather than the Valve GUI client. */
-    public boolean isLaunchHeadlessSteam() {
-        return launchRealSteam && STEAM_TYPE_HEADLESS.equals(steamType);
-    }
-
-    public boolean isLaunchBionicSteam() {
-        return launchBionicSteam;
-    }
-
-    public void setLaunchBionicSteam(boolean launchBionicSteam) {
-        this.launchBionicSteam = launchBionicSteam;
-    }
-
-    public boolean isAllowSteamUpdates() {
-        return allowSteamUpdates;
-    }
-
-    public void setAllowSteamUpdates(boolean allowSteamUpdates) {
-        this.allowSteamUpdates = allowSteamUpdates;
-    }
-
     public boolean isSdlControllerAPI() {
         return sdlControllerAPI;
     }
@@ -442,14 +394,6 @@ public class Container {
 
     public void setDisableLibredirect(boolean disableLibredirect) {
         this.disableLibredirect = disableLibredirect;
-    }
-
-    public boolean isDisableEpicOverlay() {
-        return disableEpicOverlay;
-    }
-
-    public void setDisableEpicOverlay(boolean disableEpicOverlay) {
-        this.disableEpicOverlay = disableEpicOverlay;
     }
 
     public String getLanguage() {
@@ -684,21 +628,9 @@ public class Container {
         this.desktopTheme = desktopTheme;
     }
 
-    public int getRCFileId() {
-        return rcfileId;
-    }
 
-    public void setRcfileId(int id) {
-        rcfileId = id;
-    }
 
-    public String getMIDISoundFont() {
-        return midiSoundFont;
-    }
 
-    public void setMidiSoundFont(String fileName) {
-        midiSoundFont = fileName;
-    }
 
     public int getInputType() {
         return inputType;
@@ -782,9 +714,6 @@ public class Container {
             data.put("drives", drives);
             data.put("showFPS", showFPS);
             data.put("launchImmersiveMode", launchImmersiveMode);
-            data.put("launchRealSteam", launchRealSteam);
-            data.put("launchBionicSteam", launchBionicSteam);
-            data.put("allowSteamUpdates", allowSteamUpdates);
             data.put("inputType", inputType);
             data.put("dinputMapperType", dinputMapperType);
             data.put("wow64Mode", wow64Mode);
@@ -797,9 +726,6 @@ public class Container {
             data.put("desktopTheme", desktopTheme);
             data.put("extraData", extraData);
             data.put("sessionMetadata", sessionMetadata);
-            data.put("configSource", configSource);
-            data.put("rcfileId", rcfileId);
-            data.put("midiSoundFont", midiSoundFont);
             data.put("lc_all", lc_all);
             data.put("primaryController", primaryController);
             data.put("controllerMapping", controllerMapping);
@@ -809,18 +735,12 @@ public class Container {
             data.put("sdlControllerAPI", sdlControllerAPI);
             data.put("fasterExternalLoading", fasterExternalLoading);
             data.put("disableLibredirect", disableLibredirect);
-            data.put("disableEpicOverlay", disableEpicOverlay);
-            // Disable mouse input flag
             data.put("disableMouseInput", disableMouseInput);
-            // Touchscreen mode flag
             data.put("touchscreenMode", touchscreenMode);
-            // Shooter mode flag
             data.put("shooterMode", shooterMode);
-            // Gesture configuration JSON
             if (gestureConfig != null && !gestureConfig.isEmpty()) {
                 data.put("gestureConfig", gestureConfig);
             }
-            // Shooter mode configuration JSON
             if (shooterConfig != null && !shooterConfig.isEmpty()) {
                 data.put("shooterConfig", shooterConfig);
             }
@@ -834,26 +754,6 @@ public class Container {
             if (!getBasePrefix().isEmpty()) data.put("basePrefix", basePrefix);
             data.put("emulator", emulator);
             data.put("fexcoreVersion", fexcoreVersion);
-
-            // Force DLC setting
-            data.put("forceDlc", forceDlc);
-
-            // Local saves only setting
-            data.put("localSavesOnly", localSavesOnly);
-
-            // Steam offline mode setting
-            data.put("steamOfflineMode", steamOfflineMode);
-
-            // Steam offline mode setting
-            data.put("epicOfflineMode", epicOfflineMode);
-
-            // Use Legacy DRM setting
-            data.put("useLegacyDRM", useLegacyDRM);
-
-            // Unpack Files setting
-            data.put("unpackFiles", unpackFiles);
-
-            // Process suspend policy setting
             data.put("suspendPolicy", suspendPolicy);
             data.put("portraitMode", portraitMode);
             data.put("portraitBelowCutout", portraitBelowCutout);
@@ -931,15 +831,6 @@ public class Container {
                 case "launchImmersiveMode" :
                     setLaunchImmersiveMode(data.getBoolean(key));
                     break;
-                case "launchRealSteam" :
-                    setLaunchRealSteam(data.getBoolean(key));
-                    break;
-                case "launchBionicSteam" :
-                    setLaunchBionicSteam(data.getBoolean(key));
-                    break;
-                case "allowSteamUpdates" :
-                    setAllowSteamUpdates(data.getBoolean(key));
-                    break;
                 case "steamType" :
                     setSteamType(data.getString(key));
                     break;
@@ -964,10 +855,6 @@ public class Container {
                 case "extraData" : {
                     JSONObject extraData = data.getJSONObject(key);
                     setExtraData(extraData);
-                    break;
-                }
-                case "configSource" : {
-                    configSource = data.getString(key);
                     break;
                 }
                 case "sessionMetadata" : {
@@ -1012,12 +899,8 @@ public class Container {
                 case "desktopTheme" :
                     setDesktopTheme(data.getString(key));
                     break;
-                case "rcfileId" :
-                    setRcfileId(data.getInt(key));
-                    break;
-                case "midiSoundFont" :
-                    setMidiSoundFont(data.getString(key));
-                    break;
+
+
                 case "lc_all" :
                     setLC_ALL(data.getString(key));
                     break;
@@ -1044,9 +927,6 @@ public class Container {
                     break;
                 case "disableLibredirect" :
                     setDisableLibredirect(data.getBoolean(key));
-                    break;
-                case "disableEpicOverlay" :
-                    setDisableEpicOverlay(data.getBoolean(key));
                     break;
                 case "disableMouseInput" :
                     setDisableMouseInput(data.getBoolean(key));
@@ -1077,24 +957,6 @@ public class Container {
                     break;
                 case "installPath":
                     setInstallPath(data.getString(key));
-                    break;
-                case "forceDlc":
-                    this.forceDlc = data.getBoolean(key);
-                    break;
-                case "localSavesOnly":
-                    this.localSavesOnly = data.getBoolean(key);
-                    break;
-                case "steamOfflineMode":
-                    this.steamOfflineMode = data.getBoolean(key);
-                    break;
-                case "epicOfflineMode":
-                    this.epicOfflineMode = data.getBoolean(key);
-                    break;
-                case "useLegacyDRM":
-                    this.useLegacyDRM = data.getBoolean(key);
-                    break;
-                case "unpackFiles":
-                    this.unpackFiles = data.getBoolean(key);
                     break;
                 case "suspendPolicy":
                     setSuspendPolicy(data.getString(key));
@@ -1174,53 +1036,7 @@ public class Container {
         }
     }
 
-    public boolean isForceDlc() {
-        return forceDlc;
-    }
 
-    public void setForceDlc(boolean forceDlc) {
-        this.forceDlc = forceDlc;
-    }
-
-    public boolean isLocalSavesOnly() {
-        return localSavesOnly;
-    }
-
-    public void setLocalSavesOnly(boolean localSavesOnly) {
-        this.localSavesOnly = localSavesOnly;
-    }
-
-    public boolean isSteamOfflineMode() {
-        return steamOfflineMode;
-    }
-
-    public boolean isEpicOfflineMode() {
-        return epicOfflineMode;
-    }
-
-    public void setSteamOfflineMode(boolean steamOfflineMode) {
-        this.steamOfflineMode = steamOfflineMode;
-    }
-
-    public void setEpicOfflineMode(boolean epicOfflineMode) {
-        this.epicOfflineMode = epicOfflineMode;
-    }
-
-    public boolean isUseLegacyDRM() {
-        return useLegacyDRM;
-    }
-
-    public void setUseLegacyDRM(boolean useLegacyDRM) {
-        this.useLegacyDRM = useLegacyDRM;
-    }
-
-    public boolean isUnpackFiles() {
-        return unpackFiles;
-    }
-
-    public void setUnpackFiles(boolean unpackFiles) {
-        this.unpackFiles = unpackFiles;
-    }
 
     public static String normalizeSuspendPolicy(String suspendPolicy) {
         String normalized = (suspendPolicy == null) ? "" : suspendPolicy.toLowerCase(Locale.ROOT);
@@ -1259,13 +1075,7 @@ public class Container {
         this.portraitBelowCutout = portraitBelowCutout;
     }
 
-    public String getConfigSource() {
-        return configSource;
-    }
 
-    public void setConfigSource(String configSource) {
-        this.configSource = configSource;
-    }
 
     public String getContainerJson() {
         String content = FileUtils.readString(getConfigFile());

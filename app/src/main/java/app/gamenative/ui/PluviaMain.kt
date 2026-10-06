@@ -6,7 +6,6 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.core.content.FileProvider
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -56,15 +55,11 @@ import app.gamenative.MainActivity
 import app.gamenative.PluviaApp
 import app.gamenative.PrefManager
 import app.gamenative.R
-import app.gamenative.data.GameSource
-import app.gamenative.enums.AppTheme
 import app.gamenative.events.AndroidEvent
 import app.gamenative.ui.component.dialog.LoadingDialog
 import app.gamenative.ui.component.dialog.MessageDialog
 import app.gamenative.ui.component.dialog.state.MessageDialogState
 import app.gamenative.ui.components.BootingSplash
-import app.gamenative.ui.enums.AppOptionMenuType
-import app.gamenative.launch.LaunchReadiness
 import app.gamenative.ui.enums.DialogType
 import app.gamenative.ui.enums.Orientation
 import app.gamenative.ui.model.MainViewModel
@@ -75,7 +70,6 @@ import app.gamenative.ui.util.LocalSnackbarHostController
 import app.gamenative.ui.util.SnackbarManager
 import app.gamenative.utils.Net
 import app.gamenative.utils.ContainerUtils
-import app.gamenative.utils.IntentLaunchManager
 import com.winlator.container.Container
 import com.winlator.container.ContainerData
 import com.winlator.container.ContainerManager
@@ -103,30 +97,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import timber.log.Timber
 
-private const val PENDING_LAUNCH_TIMEOUT_MS = 10_000L
 private const val SNACKBAR_SHOW_TIMEOUT_MS = 15_000L
-
-private sealed class GameResolutionResult {
-    data class Success(
-        val finalAppId: String,
-        val gameId: Int,
-        val isCustomGame: Boolean,
-    ) : GameResolutionResult()
-    data class NotFound(
-        val gameId: Int,
-        val originalAppId: String,
-    ) : GameResolutionResult()
-}
-
-private fun resolveGameAppId(context: Context, appId: String): GameResolutionResult {
-    val gameSource = ContainerUtils.extractGameSourceFromContainerId(appId)
-    val gameId = ContainerUtils.extractGameIdFromContainerId(appId)
-    return GameResolutionResult.Success(
-        finalAppId = appId,
-        gameId = gameId,
-        isCustomGame = gameSource == GameSource.CUSTOM_GAME,
-    )
-}
 
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -154,88 +125,12 @@ fun PluviaMain(
 
     var gameBackAction by remember { mutableStateOf<() -> Unit?>({}) }
 
-    // shared intent-launch path. resolves isOffline at the call site because intent launches can
-    // arrive pre-login (cold-boot via stored creds) and downstream cloud-sync needs a settled answer.
-    val launchIntentApp: (resolvedAppId: String, hasTemporaryOverride: Boolean) -> Unit = { resolvedAppId, hasTemporaryOverride ->
-        MainActivity.wasLaunchedViaExternalIntent = true
-        viewModel.setLaunchedAppId(resolvedAppId)
-        viewModel.setBootToContainer(false)
-        scope.launch(Dispatchers.IO) {
-            viewModel.setOffline(false)
-            preLaunchApp(
-                context = context,
-                appId = resolvedAppId,
-                useTemporaryOverride = hasTemporaryOverride,
-                setLoadingDialogVisible = viewModel::setLoadingDialogVisible,
-                setLoadingProgress = viewModel::setLoadingDialogProgress,
-                setLoadingMessage = viewModel::setLoadingDialogMessage,
-                setMessageDialogState = setMessageDialogState,
-                onSuccess = viewModel::launchApp,
-            )
-        }
-    }
-
-    // process pending launch request from cold start (event bus has no replay)
-    LaunchedEffect(Unit) {
-        MainActivity.consumePendingLaunchRequest()?.let { launchRequest ->
-            Timber.i("[PluviaMain]: Processing pending launch request for app ${launchRequest.appId}")
-            when (val resolution = resolveGameAppId(context, launchRequest.appId)) {
-                is GameResolutionResult.Success -> {
-                    if (launchRequest.containerConfig != null) {
-                        IntentLaunchManager.applyTemporaryConfigOverride(
-                            context, launchRequest.appId, launchRequest.containerConfig,
-                        )
-                    }
-                    launchIntentApp(resolution.finalAppId, launchRequest.containerConfig != null)
-                }
-
-                is GameResolutionResult.NotFound -> {
-                    val appName = ContainerUtils.resolveGameName(resolution.originalAppId)
-                    Timber.w("[PluviaMain]: Game not installed: $appName (${launchRequest.appId})")
-                    msgDialogState = MessageDialogState(
-                        visible = true,
-                        type = DialogType.SYNC_FAIL,
-                        title = context.getString(R.string.game_not_installed_title),
-                        message = context.getString(R.string.game_not_installed_message, appName),
-                        dismissBtnText = context.getString(R.string.ok),
-                    )
-                }
-            }
-        }
-    }
-
     LaunchedEffect(Unit) {
         viewModel.uiEvent.collect { event ->
             when (event) {
                 MainViewModel.MainUiEvent.LaunchApp -> {
                     if (state.showBootingSplash) {
                         navController.navigate(PluviaScreen.XServer.route)
-                    }
-                }
-
-                is MainViewModel.MainUiEvent.ExternalGameLaunch -> {
-                    Timber.i("[PluviaMain]: Received ExternalGameLaunch UI event for app ${event.appId}")
-
-                    when (val resolution = resolveGameAppId(context, event.appId)) {
-                        is GameResolutionResult.Success -> {
-                            Timber.i("[PluviaMain]: Using appId: ${resolution.finalAppId} (original: ${event.appId}, isCustomGame: ${resolution.isCustomGame})")
-                            launchIntentApp(
-                                resolution.finalAppId,
-                                IntentLaunchManager.hasTemporaryOverride(resolution.finalAppId),
-                            )
-                        }
-
-                        is GameResolutionResult.NotFound -> {
-                            val appName = ContainerUtils.resolveGameName(resolution.originalAppId)
-                            Timber.w("[PluviaMain]: Game not installed: $appName (${event.appId})")
-                            msgDialogState = MessageDialogState(
-                                visible = true,
-                                type = DialogType.SYNC_FAIL,
-                                title = context.getString(R.string.game_not_installed_title),
-                                message = context.getString(R.string.game_not_installed_message, appName),
-                                dismissBtnText = context.getString(R.string.ok),
-                            )
-                        }
                     }
                 }
 
@@ -295,47 +190,11 @@ fun PluviaMain(
         }
     }
 
-    // Listen for save container config prompt
-    var pendingSaveAppId by rememberSaveable { mutableStateOf<String?>(null) }
-    val onPromptSaveConfig: (AndroidEvent.PromptSaveContainerConfig) -> Unit = { event ->
-        pendingSaveAppId = event.appId
-        msgDialogState = MessageDialogState(
-            visible = true,
-            type = DialogType.SAVE_CONTAINER_CONFIG,
-            title = context.getString(R.string.save_container_settings_title),
-            message = context.getString(R.string.save_container_settings_message),
-            confirmBtnText = context.getString(R.string.save),
-            dismissBtnText = context.getString(R.string.discard),
-        )
-    }
-
-    LaunchedEffect(Unit) {
-        PluviaApp.events.on<AndroidEvent.PromptSaveContainerConfig, Unit>(onPromptSaveConfig)
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            PluviaApp.events.off<AndroidEvent.PromptSaveContainerConfig, Unit>(onPromptSaveConfig)
-        }
-    }
-
     val onDismissRequest: (() -> Unit)?
     val onDismissClick: (() -> Unit)?
     val onConfirmClick: (() -> Unit)?
     var onActionClick: (() -> Unit)? = null
     when (msgDialogState.type) {
-        DialogType.DISCORD -> {
-            onConfirmClick = {
-                setMessageDialogState(MessageDialogState(false))
-                uriHandler.openUri("https://discord.gg/2hKv4VfZfE")
-            }
-            onDismissClick = {
-                setMessageDialogState(MessageDialogState(false))
-            }
-            onDismissRequest = {
-                setMessageDialogState(MessageDialogState(false))
-            }
-        }
 
         DialogType.SYNC_FAIL -> {
             onConfirmClick = null
@@ -347,63 +206,12 @@ fun PluviaMain(
             }
         }
 
-
         DialogType.EXECUTABLE_NOT_FOUND -> {
             onConfirmClick = null
             onDismissClick = {
                 setMessageDialogState(MessageDialogState(false))
             }
             onDismissRequest = {
-                setMessageDialogState(MessageDialogState(false))
-            }
-            onActionClick = {
-                setMessageDialogState(MessageDialogState(false))
-            }
-        }
-
-        DialogType.CRASH -> {
-            onDismissClick = null
-            onDismissRequest = {
-                viewModel.setHasCrashedLastStart(false)
-                setMessageDialogState(MessageDialogState(false))
-            }
-            onConfirmClick = {
-                viewModel.setHasCrashedLastStart(false)
-                setMessageDialogState(MessageDialogState(false))
-            }
-        }
-
-        DialogType.SAVE_CONTAINER_CONFIG -> {
-            onConfirmClick = {
-                // Save the container config permanently
-                pendingSaveAppId?.let { appId ->
-                    IntentLaunchManager.getEffectiveContainerConfig(context, appId)?.let { config ->
-                        ContainerUtils.applyToContainer(context, appId, config)
-                        Timber.i("[PluviaMain]: Saved container configuration for app $appId")
-                    }
-                    // Clear the temporary override after saving
-                    IntentLaunchManager.clearTemporaryOverride(appId)
-                }
-                pendingSaveAppId = null
-                setMessageDialogState(MessageDialogState(false))
-            }
-            onDismissClick = {
-                // Discard the temporary config and restore original
-                pendingSaveAppId?.let { appId ->
-                    IntentLaunchManager.restoreOriginalConfiguration(context, appId)
-                    IntentLaunchManager.clearTemporaryOverride(appId)
-                    Timber.i("[PluviaMain]: Discarded temporary config and restored original for app $appId")
-                }
-                pendingSaveAppId = null
-                setMessageDialogState(MessageDialogState(false))
-            }
-            onDismissRequest = {
-                // Treat closing dialog as discard
-                pendingSaveAppId?.let { appId ->
-                    IntentLaunchManager.restoreOriginalConfiguration(context, appId)
-                    IntentLaunchManager.clearTemporaryOverride(appId)
-                }
-                pendingSaveAppId = null
                 setMessageDialogState(MessageDialogState(false))
             }
         }
@@ -436,16 +244,7 @@ fun PluviaMain(
         // TODO: Make prelaunch/loading operations cancellable so Back can exit safely.
     }
 
-    PluviaTheme(
-        isDark = when (state.appTheme) {
-            AppTheme.AUTO -> isSystemInDarkTheme()
-            AppTheme.DAY -> false
-            AppTheme.NIGHT -> true
-            AppTheme.AMOLED -> true
-        },
-        isAmoled = (state.appTheme == AppTheme.AMOLED),
-        style = state.paletteStyle,
-    ) {
+    PluviaTheme {
         Box(modifier = Modifier.fillMaxSize()) {
             LoadingDialog(
                 visible = state.loadingDialogVisible,
@@ -514,10 +313,6 @@ fun PluviaMain(
                     app.gamenative.ui.screen.wow.WoWForeverScreen(
                         onLaunch = { appId ->
                             viewModel.setLaunchedAppId(appId)
-                            viewModel.setBootToContainer(false)
-                            viewModel.setTestGraphics(false)
-                            viewModel.setDiagnostics(false)
-                            viewModel.setDebugRun(false)
                             viewModel.setOffline(true)
                             preLaunchJob?.cancel()
                             preLaunchJob = preLaunchApp(
@@ -550,10 +345,6 @@ fun PluviaMain(
                     }
                     XServerScreen(
                         appId = state.launchedAppId,
-                        bootToContainer = state.bootToContainer,
-                        testGraphics = state.testGraphics,
-                        diagnostics = state.diagnostics,
-                        debugRun = state.debugRun,
                         isOffline = xServerIsOffline,
                         registerBackAction = { cb ->
                             Timber.d("registerBackAction called: $cb")
@@ -566,13 +357,7 @@ fun PluviaMain(
                                     ?.route
 
                                 if (currentRoute == PluviaScreen.XServer.route) {
-                                    if (MainActivity.wasLaunchedViaExternalIntent) {
-                                        Timber.d("[IntentLaunch]: Finishing activity to return to external launcher")
-                                        MainActivity.wasLaunchedViaExternalIntent = false
-                                        (context as? android.app.Activity)?.finish()
-                                    } else {
-                                        navController.popBackStack()
-                                    }
+                                    navController.popBackStack()
                                 }
                             }
                         },
@@ -580,7 +365,7 @@ fun PluviaMain(
                             viewModel.onWindowMapped(context, window, state.launchedAppId)
                         },
                         onExit = { onComplete ->
-                            viewModel.exitSteamApp(context, state.launchedAppId, onComplete)
+                            viewModel.exitApp(context, state.launchedAppId, onComplete)
                         },
                         onGameLaunchError = { error ->
                             viewModel.onGameLaunchError(error)
@@ -624,41 +409,19 @@ fun PluviaMain(
 fun preLaunchApp(
     context: Context,
     appId: String,
-    useTemporaryOverride: Boolean = false,
     setLoadingDialogVisible: (Boolean) -> Unit,
     setLoadingProgress: (Float) -> Unit,
     setLoadingMessage: (String) -> Unit,
     setMessageDialogState: (MessageDialogState) -> Unit,
     onSuccess: KFunction2<Context, String, Unit>,
-    bootToContainer: Boolean = false,
 ): Job {
     setLoadingDialogVisible(true)
 
-    val gameId = ContainerUtils.extractGameIdFromContainerId(appId)
-
     return CoroutineScope(Dispatchers.IO).launch {
-        if (LaunchReadiness.pending) {
-            setLoadingDialogVisible(false)
-            (context as? Activity)?.let { LaunchReadiness.resolve(it) }
-            return@launch
-        }
-
-        // create container if it does not already exist
-        // TODO: combine somehow with container creation in HomeLibraryAppScreen
         val containerManager = ContainerManager(context)
-        val container = if (useTemporaryOverride) {
-            ContainerUtils.getOrCreateContainerWithOverride(context, appId)
-        } else {
-            ContainerUtils.getOrCreateContainer(context, appId)
-        }
-
-        // Clear session metadata on every launch to ensure fresh values
+        val container = ContainerUtils.getOrCreateContainer(context, appId)
         container.clearSessionMetadata()
 
-        val gameSource = ContainerUtils.extractGameSourceFromContainerId(appId)
-
-        // Migrate legacy on-disk imagefs layout (e.g. legacy Proton → shared paths) before manifest
-        // installs or launch deps — resolveMissingManifestInstallRequests can install Proton too.
         val legacyImageFsRoot = File(context.filesDir, "imagefs")
         val migrationOk = ImageFSLegacyMigrator.migrateLegacyDirsIfNeeded(
             context,
@@ -682,24 +445,20 @@ fun preLaunchApp(
             return@launch
         }
 
-        // When "Open container" is used we boot to desktop/file manager only — skip executable check
-        if (!bootToContainer) {
-            val effectiveExe = container.executablePath
-            if (effectiveExe.isBlank()) {
-                Timber.tag("preLaunchApp").w("Cannot launch $appId: no executable found (game source: $gameSource)")
-                setLoadingDialogVisible(false)
-                setMessageDialogState(
-                    MessageDialogState(
-                        visible = true,
-                        type = DialogType.EXECUTABLE_NOT_FOUND,
-                        title = context.getString(R.string.game_executable_not_found_title),
-                        message = context.getString(R.string.game_executable_not_found),
-                        dismissBtnText = context.getString(R.string.ok),
-                        actionBtnText = context.getString(AppOptionMenuType.EditContainer.title),
-                    ),
-                )
-                return@launch
-            }
+        val effectiveExe = container.executablePath
+        if (effectiveExe.isBlank()) {
+            Timber.tag("preLaunchApp").w("Cannot launch $appId: no executable found")
+            setLoadingDialogVisible(false)
+            setMessageDialogState(
+                MessageDialogState(
+                    visible = true,
+                    type = DialogType.EXECUTABLE_NOT_FOUND,
+                    title = context.getString(R.string.game_executable_not_found_title),
+                    message = context.getString(R.string.game_executable_not_found),
+                    dismissBtnText = context.getString(R.string.ok),
+                ),
+            )
+            return@launch
         }
 
 

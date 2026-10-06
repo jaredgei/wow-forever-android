@@ -88,7 +88,6 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import app.gamenative.PluviaApp
 import app.gamenative.PrefManager
-import app.gamenative.data.GameSource
 import app.gamenative.data.GyroSettings
 import app.gamenative.data.ShooterModeConfig
 import app.gamenative.events.AndroidEvent
@@ -405,10 +404,6 @@ private fun SyncGyroOverlaySuppression(suppressed: Boolean, viewKey: XServerRend
 fun XServerScreen(
     lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current,
     appId: String,
-    bootToContainer: Boolean,
-    testGraphics: Boolean = false,
-    diagnostics: Boolean = false,
-    debugRun: Boolean = false,
     isOffline: Boolean = false,
     registerBackAction: ( ( ) -> Unit ) -> Unit,
     navigateBack: () -> Unit,
@@ -1980,16 +1975,9 @@ fun XServerScreen(
                 win32AppWorkarounds = Win32AppWorkarounds(getxServer())
                 touchMouse = TouchMouse(getxServer())
                 keyboard = Keyboard(getxServer())
-                if (!bootToContainer) {
-                    renderer.setUnviewableWMClasses("explorer.exe")
-                    // TODO: make 'force fullscreen' be an option of the app being launched
-                    if (container.executablePath.isNotBlank()) {
-                        renderer.forceFullscreenWMClass = Paths.get(container.executablePath).name
-                    }
-                    // Here, Ludashi calls setDriverInfo to use Adrenotools for the compositor
-                    // We are not doing that because it caused a race and crash in some games (eg Balatro)
-                    // Unless booted from the container - and I didn't know the benefit of custom driver
-                    // on the compositor. I may be wrong though.
+                renderer.setUnviewableWMClasses("explorer.exe")
+                if (container.executablePath.isNotBlank()) {
+                    renderer.forceFullscreenWMClass = Paths.get(container.executablePath).name
                 }
                 // Remove any previous listener before adding a new one (handles key(isPortrait) recreation)
                 windowModificationListener?.let {
@@ -2240,10 +2228,6 @@ fun XServerScreen(
                             PluviaApp.xEnvironment = setupXEnvironment(
                                 context,
                                 appId,
-                                bootToContainer,
-                                testGraphics,
-                                diagnostics,
-                                debugRun,
                                 xServerState,
                                 envVars,
                                 container,
@@ -3579,10 +3563,6 @@ private fun assignTaskAffinity(
 private fun setupXEnvironment(
     context: Context,
     appId: String,
-    bootToContainer: Boolean,
-    testGraphics: Boolean,
-    diagnostics: Boolean,
-    debugRun: Boolean,
     xServerState: MutableState<XServerState>,
     envVars: EnvVars,
     container: Container?,
@@ -3593,7 +3573,6 @@ private fun setupXEnvironment(
 ): XEnvironment {
     ProcessHelper.hardKillStaleWineProcesses()
 
-    val gameSource = ContainerUtils.extractGameSourceFromContainerId(appId)
     val lc_all = container!!.lC_ALL
     val imageFs = ImageFs.find(context)
     Timber.i("ImageFs paths:")
@@ -3636,34 +3615,20 @@ private fun setupXEnvironment(
     val enableBox86Logs = WinlatorPrefManager.getBoolean("enable_box86_64_logs", false)
     val wineDebugChannels = PrefManager.wineDebugChannels
     // explicitly enable or disable Wine debug channels
-    if (debugRun) {
-        envVars.put("WINEDEBUG", "warn+seh,+loaddll,+process,+timestamp,+pid,+tid")
-        envVars.put("DXVK_LOG_LEVEL", "info")
-        envVars.put("DXVK_LOG_PATH", "none")
-        envVars.put("VKD3D_DEBUG", "warn")
-    } else if (diagnostics) {
-        envVars.put("WRAPPER_DIAG", "1")
-        envVars.put("WRAPPER_DIAG_APPID", appId)
-        envVars.put("WRAPPER_LOG_LEVEL", "info")
-        envVars.put("VKD3D_DEBUG", "warn")
-        envVars.put("DXVK_LOG_LEVEL", "info")
-        envVars.put("WINEDEBUG", "+vulkan")
-    } else {
-        envVars.put(
-            "WINEDEBUG",
-            if (enableWineDebug && wineDebugChannels.isNotEmpty())
-                "+" + wineDebugChannels.replace(",", ",+")
-            else
-                "-all",
-        )
-    }
+    envVars.put(
+        "WINEDEBUG",
+        if (enableWineDebug && wineDebugChannels.isNotEmpty())
+            "+" + wineDebugChannels.replace(",", ",+")
+        else
+            "-all",
+    )
     // capture debug output to file if either Wine or Box86/64 logging is enabled
     var logFile: File? = null
-    val captureLogs = debugRun || enableWineDebug || enableBox86Logs
+    val captureLogs = enableWineDebug || enableBox86Logs
     if (captureLogs) {
         val wineLogDir = File(context.getExternalFilesDir(null), "wine_logs")
         wineLogDir.mkdirs()
-        logFile = File(wineLogDir, if (debugRun) "debug_run_$appId.log" else "wine_debug.log")
+        logFile = File(wineLogDir, "wine_debug.log")
         if (logFile.exists()) logFile.delete()
     }
 
@@ -3696,7 +3661,7 @@ private fun setupXEnvironment(
         guestProgramLauncherComponent.setContainer(container)
         guestProgramLauncherComponent.setWineInfo(xServerState.value.wineInfo)
         val gameExecutable = "wine explorer /desktop=shell," + xServer.screenInfo + " " +
-            getWineStartCommand(context, appId, container, bootToContainer, testGraphics, envVars, guestProgramLauncherComponent, gameSource) +
+            getWineStartCommand(context, appId, container, envVars, guestProgramLauncherComponent) +
             (if (container.execArgs.isNotEmpty()) " " + container.execArgs else "")
         guestProgramLauncherComponent.guestExecutable = gameExecutable
         guestProgramLauncherComponent.isWoW64Mode = wow64Mode
@@ -3887,81 +3852,60 @@ private fun getWineStartCommand(
     context: Context,
     appId: String,
     container: Container,
-    bootToContainer: Boolean,
-    testGraphics: Boolean,
     envVars: EnvVars,
     guestProgramLauncherComponent: GuestProgramLauncherComponent,
-    gameSource: GameSource,
 ): String {
     val tempDir = File(container.getRootDir(), ".wine/drive_c/windows/temp")
     FileUtils.clear(tempDir)
 
-    val isCustomGame = gameSource == GameSource.CUSTOM_GAME
+    val executablePath = container.executablePath
+    if (executablePath.isEmpty()) {
+        return "winhandler.exe \"wfm.exe\""
+    }
 
-    val args = if (testGraphics) {
-        "\"Z:/opt/apps/TestD3D.exe\""
-    } else if (bootToContainer) {
-        "\"wfm.exe\""
-    } else if (isCustomGame) {
-        // For Custom Games, we can launch even without appLaunchInfo
-        // Use the executable path from container config. If missing, try to auto-detect
-        // a unique .exe in the game folder (ignoring installers like "unins*").
-        var executablePath = container.executablePath
+    var gameFolderPath: String? = null
+    for (drive in Container.drivesIterator(container.drives)) {
+        if (drive[0] == "A") {
+            gameFolderPath = drive[1]
+            break
+        }
+    }
 
-        // Find the A: drive (which should map to the game folder)
-        var gameFolderPath: String? = null
+    val args = if (ContainerUtils.isAbsoluteWindowsPath(executablePath)) {
+        val driveLetter = executablePath.substring(0, 1).uppercase()
+        var driveHostPath: String? = null
         for (drive in Container.drivesIterator(container.drives)) {
-            if (drive[0] == "A") {
-                gameFolderPath = drive[1]
+            if (drive[0].uppercase() == driveLetter) {
+                driveHostPath = drive[1]
                 break
             }
         }
-
-        if (executablePath.isEmpty()) {
-            return "winhandler.exe \"wfm.exe\""
-        }
-
-        if (ContainerUtils.isAbsoluteWindowsPath(executablePath)) {
-            val driveLetter = executablePath.substring(0, 1).uppercase()
-            var driveHostPath: String? = null
-            for (drive in Container.drivesIterator(container.drives)) {
-                if (drive[0].uppercase() == driveLetter) {
-                    driveHostPath = drive[1]
-                    break
-                }
-            }
-            if (driveHostPath != null) {
-                val winSubPath = executablePath.substring(3).replace("\\", "/")
-                val winDir = winSubPath.substringBeforeLast("/", "")
-                val hostDir = File(driveHostPath, winDir)
-                if (hostDir.exists() && hostDir.isDirectory) {
-                    guestProgramLauncherComponent.workingDir = hostDir
-                    Timber.tag("XServerScreen").i("Set workingDir for absolute exe to: ${hostDir.absolutePath}")
-                }
-            }
-            val isArm64 = executablePath.contains("ARM64", ignoreCase = true)
-            return if (isArm64) {
-                if (executablePath.contains(" ")) "\"$executablePath\"" else executablePath
-            } else {
-                "winhandler.exe \"$executablePath\""
+        if (driveHostPath != null) {
+            val winSubPath = executablePath.substring(3).replace("\\", "/")
+            val winDir = winSubPath.substringBeforeLast("/", "")
+            val hostDir = File(driveHostPath, winDir)
+            if (hostDir.exists() && hostDir.isDirectory) {
+                guestProgramLauncherComponent.workingDir = hostDir
             }
         }
-
+        val isArm64 = executablePath.contains("ARM64", ignoreCase = true)
+        if (isArm64) {
+            if (executablePath.contains(" ")) "\"$executablePath\"" else executablePath
+        } else {
+            "winhandler.exe \"$executablePath\""
+        }
+    } else {
         if (gameFolderPath == null) {
-            Timber.tag("XServerScreen").e("Could not find A: drive for Custom Game: $appId")
+            Timber.tag("XServerScreen").e("Could not find A: drive: $appId")
             return "winhandler.exe \"wfm.exe\""
         }
 
-        // Set working directory to the game folder
         val executableDir = gameFolderPath + "/" + executablePath.substringBeforeLast("/", "")
         guestProgramLauncherComponent.workingDir = File(executableDir)
 
-        // Normalize path separators (ensure Windows-style backslashes)
         val normalizedPath = executablePath.replace('/', '\\')
         envVars.put("WINEPATH", "A:\\")
         "\"A:\\${normalizedPath}\""
-    } else {
-        "\"wfm.exe\""
     }
 
     return if (args.contains("ARM64", ignoreCase = true)) args else "winhandler.exe $args"
@@ -4016,14 +3960,8 @@ private fun exit(
         }
     }
     frameRating?.writeSessionSummary()
-
-    if (MainActivity.wasLaunchedViaExternalIntent) {
-        Timber.i("[IntentLaunch]: Waiting for exit handling before returning to external launcher")
-        onExit(navigateBack)
-    } else {
-        onExit(null)
-        navigateBack()
-    }
+    onExit(null)
+    navigateBack()
 }
 
 private fun unpackExecutableFile(

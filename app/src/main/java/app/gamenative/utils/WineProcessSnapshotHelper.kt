@@ -25,8 +25,6 @@ object WineProcessSnapshotHelper {
         "rundll32",
         "msiexec",
         "winebrowser",
-        "steam",
-        "steamwebhelper",
     )
 
     fun isSystemProcessName(name: String): Boolean {

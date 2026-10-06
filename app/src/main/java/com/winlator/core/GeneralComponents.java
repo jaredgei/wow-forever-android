@@ -10,7 +10,6 @@ import android.widget.Spinner;
 import android.widget.SpinnerAdapter;
 import app.gamenative.MainActivity;
 import app.gamenative.R;
-import com.winlator.contentdialog.ContentDialog;
 import com.winlator.core.TarCompressorUtils;
 import com.winlator.xenvironment.ImageFs;
 import java.io.File;
