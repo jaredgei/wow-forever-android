@@ -78,6 +78,7 @@ fun WoWForeverScreen(
     var dataExists by remember { mutableStateOf(false) }
     var buildInfoExists by remember { mutableStateOf(false) }
     var hasStorageAccess by remember { mutableStateOf(true) }
+    var showStoragePermissionDialog by remember { mutableStateOf(false) }
     var versionStatus by remember { mutableStateOf<WowClientDownloader.VersionCheckResult?>(null) }
     var isCheckingVersion by remember { mutableStateOf(false) }
     var isUpdating by remember { mutableStateOf(false) }
@@ -106,7 +107,7 @@ fun WoWForeverScreen(
         exeExists = exe.exists()
         dataExists = dataDir.exists() && (dataDir.listFiles()?.isNotEmpty() == true)
         buildInfoExists = buildInfo.exists()
-        hasStorageAccess = !root.exists() || root.list() != null || StorageUtils.hasStoragePermission(context, gamePath)
+        hasStorageAccess = StorageUtils.hasStoragePermission(context, gamePath)
 
         val product = if (buildInfoExists) WowClientDownloader.readBuildInfo(buildInfo)?.get("Product").orEmpty() else ""
         isWrongGame = buildInfoExists && product.isNotBlank() && product != WowClientDownloader.TARGET_PRODUCT
@@ -156,21 +157,28 @@ fun WoWForeverScreen(
         gamePath = root.absolutePath
         GamePath.save(context, gamePath)
         versionStatus = null
-        checkFiles()
-        checkVersionStatus()
+        val ok = checkFiles()
+        if (!hasStorageAccess) {
+            showStoragePermissionDialog = true
+        } else if (ok) {
+            checkVersionStatus()
+        }
     }
 
     val filesMissing = !(dataExists && buildInfoExists)
 
     fun launchGame() {
         if (isLaunching || isWrongGame) return
+        if (!hasStorageAccess) {
+            showStoragePermissionDialog = true
+            return
+        }
         isLaunching = true
         errorMessage = null
         statusText = "Preparing components..."
 
         launchJob = scope.launch(Dispatchers.IO) {
             try {
-                // 1. Ensure components from assets are installed
                 val componentsOk = installBundledComponents(context) { msg ->
                     scope.launch(Dispatchers.Main) { statusText = msg }
                 }
@@ -182,7 +190,20 @@ fun WoWForeverScreen(
                 check(File(gamePath, ".build.info").exists()) {
                     "Missing .build.info in $gamePath. Copy it from your WoW install."
                 }
-                ensureGameConfig(File(gamePath))
+                try {
+                    ensureGameConfig(File(gamePath))
+                } catch (e: Exception) {
+                    if (e.message?.contains("EPERM") == true || e.message?.contains("Operation not permitted") == true) {
+                        scope.launch(Dispatchers.Main) {
+                            hasStorageAccess = false
+                            isLaunching = false
+                            statusText = "Ready to launch"
+                            showStoragePermissionDialog = true
+                        }
+                        return@launch
+                    }
+                    throw e
+                }
 
                 val arm64Exe = File(gamePath, "${WowClientDownloader.FLAVOR_DIR}/WowB-ARM64.exe")
                 if (!arm64Exe.exists()) {
@@ -266,6 +287,10 @@ fun WoWForeverScreen(
     fun performUpdate() {
         val target = versionStatus ?: return
         if (isUpdating || isLaunching) return
+        if (!hasStorageAccess) {
+            showStoragePermissionDialog = true
+            return
+        }
         isUpdating = true
         updateStatusText = "Connecting to Blizzard CDN..."
         errorMessage = null
@@ -283,6 +308,10 @@ fun WoWForeverScreen(
             } catch (e: Exception) {
                 Timber.e(e, "Error updating game")
                 scope.launch(Dispatchers.Main) {
+                    if (e.message?.contains("EPERM") == true || e.message?.contains("Operation not permitted") == true) {
+                        hasStorageAccess = false
+                        showStoragePermissionDialog = true
+                    }
                     errorMessage = "Update failed: ${e.message}"
                     isUpdating = false
                 }
@@ -292,6 +321,9 @@ fun WoWForeverScreen(
 
     LaunchedEffect(gamePath) {
         val ready = checkFiles()
+        if (!hasStorageAccess && (dataExists || buildInfoExists)) {
+            showStoragePermissionDialog = true
+        }
         Timber.i("WoWForeverScreen LaunchedEffect: gamePath=$gamePath, ready=$ready, shouldAutoLaunch=${WoWLauncherState.shouldAutoLaunch}")
         if (ready) {
             if (WoWLauncherState.shouldAutoLaunch) {
@@ -398,6 +430,8 @@ fun WoWForeverScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     CheckItem(label = "Turnip Driver & Proton 11 ARM64EC (Bundled)", ready = true)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    CheckItem(label = "All Files Access Permission", ready = hasStorageAccess)
                     if (versionStatus != null) {
                         Spacer(modifier = Modifier.height(8.dp))
                         CheckItem(
@@ -476,6 +510,55 @@ fun WoWForeverScreen(
                 }
             }
 
+            if (!hasStorageAccess) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth(0.9f)
+                        .border(1.dp, Color(0xFFED8936).copy(alpha = 0.6f), RoundedCornerShape(16.dp)),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF2D2315).copy(alpha = 0.85f)),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = Color(0xFFED8936),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "STORAGE PERMISSION REQUIRED",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFED8936),
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Android requires 'All files access' to read game data and save configurations in external storage. Without this permission, opening files fails with EPERM.",
+                            fontSize = 12.sp,
+                            color = Color(0xFFFED7D7),
+                            lineHeight = 16.sp
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = { StorageUtils.requestManageExternalStoragePermission(context) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF9E7138),
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth().height(42.dp)
+                        ) {
+                            Text("GRANT ALL FILES ACCESS", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
             // Action section
@@ -500,17 +583,6 @@ fun WoWForeverScreen(
                         textAlign = TextAlign.Center
                     )
                 } else {
-                    if (!hasStorageAccess) {
-                        OutlinedButton(
-                            onClick = { StorageUtils.requestManageExternalStoragePermission(context) },
-                            modifier = Modifier.fillMaxWidth(0.85f).height(48.dp),
-                            shape = RoundedCornerShape(14.dp),
-                        ) {
-                            Text("ALLOW FILE ACCESS", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFC79C6E))
-                        }
-                        Spacer(modifier = Modifier.height(10.dp))
-                    }
-
                     if (filesMissing) {
                         OutlinedButton(
                             onClick = { folderPicker.launch(null) },
@@ -628,6 +700,50 @@ fun WoWForeverScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
+
+    if (showStoragePermissionDialog) {
+        AlertDialog(
+            onDismissRequest = { showStoragePermissionDialog = false },
+            title = {
+                Text(
+                    text = "Storage Permission Required",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp,
+                    color = Color(0xFFC79C6E)
+                )
+            },
+            text = {
+                Text(
+                    text = "Android requires 'All files access' for WoW Forever to read and update game files in this directory.\n\nPlease enable 'Allow access to manage all files' on the next screen.",
+                    fontSize = 13.sp,
+                    color = Color(0xFFE2E8F0),
+                    lineHeight = 18.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showStoragePermissionDialog = false
+                        StorageUtils.requestManageExternalStoragePermission(context)
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF9E7138),
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("OPEN SETTINGS", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStoragePermissionDialog = false }) {
+                    Text("CANCEL", color = Color(0xFF88A0C0))
+                }
+            },
+            containerColor = Color(0xFF1B2838),
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
 }
 
 object GamePath {
@@ -659,7 +775,7 @@ object GamePath {
             (dataDir.exists() && dataDir.listFiles()?.isNotEmpty() == true) &&
             buildInfo.isFile &&
             WowClientDownloader.readBuildInfo(buildInfo)?.get("Product") == WowClientDownloader.TARGET_PRODUCT &&
-            (!root.exists() || root.list() != null || StorageUtils.hasStoragePermission(context, path))
+            StorageUtils.hasStoragePermission(context, path)
     }
 
     fun findGameRoot(picked: File): File? =

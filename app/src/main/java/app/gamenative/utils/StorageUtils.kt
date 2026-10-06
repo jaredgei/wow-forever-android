@@ -14,35 +14,79 @@ object StorageUtils {
 
         if (!isOutsideSandbox) return true
 
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            Environment.isExternalStorageManager()
-        } else {
-            androidx.core.content.ContextCompat.checkSelfPermission(
-                context,
-                android.Manifest.permission.READ_EXTERNAL_STORAGE,
-            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (Environment.isExternalStorageManager()) return true
+            return canWriteToDirectory(File(path))
+        }
+
+        val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+            context,
+            android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        return granted || canWriteToDirectory(File(path))
+    }
+
+    private fun canWriteToDirectory(target: File): Boolean {
+        var dir: File? = target
+        while (dir != null && !dir.exists()) {
+            dir = dir.parentFile
+        }
+        if (dir == null || !dir.isDirectory) return false
+        val testFile = File(dir, ".wow_perm_probe_${android.os.Process.myPid()}")
+        return try {
+            if (testFile.exists()) testFile.delete()
+            if (testFile.createNewFile()) {
+                testFile.delete()
+                true
+            } else {
+                false
+            }
+        } catch (_: Exception) {
+            false
         }
     }
 
     fun requestManageExternalStoragePermission(context: Context): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             try {
-                val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-                intent.data = android.net.Uri.parse("package:${context.packageName}")
+                val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                    data = android.net.Uri.parse("package:${context.packageName}")
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
                 context.startActivity(intent)
                 return true
             } catch (_: Exception) {
                 try {
-                    val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                    intent.data = android.net.Uri.parse("package:${context.packageName}")
+                    val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION).apply {
+                        addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
                     context.startActivity(intent)
                     return true
                 } catch (_: Exception) {
-                    return false
+                    try {
+                        val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = android.net.Uri.parse("package:${context.packageName}")
+                            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        context.startActivity(intent)
+                        return true
+                    } catch (_: Exception) {
+                        return false
+                    }
                 }
             }
+        } else {
+            try {
+                val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = android.net.Uri.parse("package:${context.packageName}")
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+                return true
+            } catch (_: Exception) {
+                return false
+            }
         }
-        return false
     }
 
     fun getPathFromTreeUri(context: Context, uri: android.net.Uri?): String? {
