@@ -133,8 +133,8 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
                     Process.killProcess(subProcess.pid);
                 }
                 PluviaApp.setKeepAlive(false);
+                execShellCommand("wineserver -k");
             }
-            execShellCommand("wineserver -k");
         }
     }
 

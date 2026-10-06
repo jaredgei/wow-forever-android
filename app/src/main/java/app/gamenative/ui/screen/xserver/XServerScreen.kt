@@ -116,8 +116,6 @@ import app.gamenative.utils.LsfgVkManager
 import app.gamenative.utils.downloader.DXWrapperDownloader
 import app.gamenative.utils.downloader.GraphicsDriverDownloader
 import app.gamenative.utils.BrightnessManager
-import app.gamenative.utils.WineMono
-import app.gamenative.utils.WineMsiCache
 import app.gamenative.utils.downloader.WinComponentDownloader
 import app.gamenative.utils.WineProcessSnapshotHelper
 import com.winlator.alsaserver.ALSAClient
@@ -1621,9 +1619,6 @@ fun XServerScreen(
         Timber.i("onForceCloseApp")
         exit(xServerView!!.getxServer().winHandler, frameRating, container, appId, onExit, navigateBack, "force_close")
     }
-    val debugCallback = Callback<String> { outputLine ->
-        Timber.i(outputLine ?: "")
-    }
 
     DisposableEffect(Unit) {
         PluviaApp.events.on<AndroidEvent.ActivityDestroyed, Unit>(onActivityDestroyed)
@@ -1631,7 +1626,6 @@ fun XServerScreen(
         PluviaApp.events.on<AndroidEvent.MotionEvent, Boolean>(onMotionEvent)
         PluviaApp.events.on<AndroidEvent.GuestProgramTerminated, Unit>(onGuestProgramTerminated)
         PluviaApp.events.on<AndroidEvent.ForceCloseApp, Unit>(onForceCloseApp)
-        ProcessHelper.addDebugCallback(debugCallback)
 
         onDispose {
             PluviaApp.events.off<AndroidEvent.ActivityDestroyed, Unit>(onActivityDestroyed)
@@ -1639,7 +1633,6 @@ fun XServerScreen(
             PluviaApp.events.off<AndroidEvent.MotionEvent, Boolean>(onMotionEvent)
             PluviaApp.events.off<AndroidEvent.GuestProgramTerminated, Unit>(onGuestProgramTerminated)
             PluviaApp.events.off<AndroidEvent.ForceCloseApp, Unit>(onForceCloseApp)
-            ProcessHelper.removeDebugCallback(debugCallback)
         }
     }
 
@@ -3697,15 +3690,10 @@ private fun setupXEnvironment(
             guestProgramLauncherComponent.setFEXCorePreset(container.fexCorePreset)
         }
         guestProgramLauncherComponent.setPreUnpack {
-            unpackExecutableFile(
-                context = context,
-                needsUnpacking = container.isNeedsUnpacking,
-                container = container,
-                appId = appId,
-                guestProgramLauncherComponent = guestProgramLauncherComponent,
-                containerVariantChanged = containerVariantChanged,
-                onError = onGameLaunchError
-            )
+            if (container.isNeedsUnpacking) {
+                container.setNeedsUnpacking(false)
+                container.saveData()
+            }
             if (!isExiting.get()) {
                 PluviaApp.events.emit(AndroidEvent.SetBootingSplashText("Launching game..."))
             }
@@ -3965,38 +3953,6 @@ private fun exit(
     onExit(null)
     navigateBack()
 }
-
-private fun unpackExecutableFile(
-    context: Context,
-    needsUnpacking: Boolean,
-    container: Container,
-    appId: String,
-    guestProgramLauncherComponent: GuestProgramLauncherComponent,
-    containerVariantChanged: Boolean,
-    onError: ((String) -> Unit)? = null,
-) {
-    val imageFs = ImageFs.find(context)
-    var output = StringBuilder()
-    val monoMsi = File(imageFs.getRootDir(), "opt/mono-gecko-offline/wine-mono-11.0.0-x86.msi")
-    WineMsiCache.deleteCachedCopies(imageFs, monoMsi)
-    WineMono.ensureBase(container, monoMsi, guestProgramLauncherComponent)
-    WineMono.markOwnInstall(container, imageFs)
-    if (needsUnpacking || containerVariantChanged){
-        try {
-            PluviaApp.events.emit(AndroidEvent.SetBootingSplashText("Installing Mono..."))
-            val monoOutput = WineMono.install(container, imageFs, monoMsi, guestProgramLauncherComponent)
-            output.append(monoOutput)
-            Timber.i("Result of mono command " + output)
-        } catch (e: Exception) {
-            Timber.e("Error during mono installation: $e")
-        }
-    }
-    if (needsUnpacking) {
-        container.setNeedsUnpacking(false)
-        container.saveData()
-    }
-}
-
 
 private suspend fun setupWineSystemFiles(
     context: Context,

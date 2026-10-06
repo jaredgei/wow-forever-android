@@ -180,13 +180,10 @@ android {
 }
 
 dependencies {
-    implementation(libs.material)
-
     implementation(libs.okhttp)
 
     // Winlator
     implementation(libs.bundles.winlator)
-    implementation(libs.libarchive.android)
     implementation(libs.zstd.jni) { artifact { type = "aar" } }
     implementation(libs.xz)
 
@@ -198,7 +195,6 @@ dependencies {
     // Support
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.apng)
     implementation(libs.datastore.preferences)
     implementation(libs.jetbrains.kotlinx.json)
     implementation(libs.kotlin.coroutines)
