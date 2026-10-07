@@ -98,7 +98,12 @@ object AppUpdater {
         dest
     }
 
-    fun canInstall(context: Context): Boolean = context.packageManager.canRequestPackageInstalls()
+    fun canInstall(context: Context): Boolean = runCatching {
+        context.packageManager.canRequestPackageInstalls()
+    }.getOrElse {
+        Timber.w(it, "canRequestPackageInstalls check failed")
+        false
+    }
 
     fun openInstallPermissionSettings(context: Context) {
         runCatching {

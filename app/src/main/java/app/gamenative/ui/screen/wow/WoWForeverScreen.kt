@@ -48,6 +48,7 @@ import app.gamenative.ui.theme.WowMuted
 import app.gamenative.ui.theme.WowSubtle
 import app.gamenative.utils.AppUpdater
 import app.gamenative.utils.StorageUtils
+import app.gamenative.utils.renderReleaseNotes
 import com.winlator.container.Container
 import com.winlator.container.ContainerManager
 import com.winlator.contents.ContentProfile
@@ -663,7 +664,7 @@ fun WoWForeverScreen(
                     Column {
                         if (update.notes.isNotBlank()) {
                             Text(
-                                text = update.notes.trim(),
+                                text = renderReleaseNotes(update.notes),
                                 fontSize = 12.sp,
                                 color = Color(0xFFCBD5E1),
                                 lineHeight = 16.sp,
