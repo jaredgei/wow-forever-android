@@ -46,7 +46,6 @@ import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Gamepad
@@ -120,7 +119,6 @@ object QuickMenuAction {
     const val SHOOTER_MODE = 9
     const val RADIAL_MENU = 10
     const val GYRO = 11
-    const val BATTLE_NET_SIGN_IN = 12
 }
 
 private object QuickMenuTab {
@@ -353,14 +351,6 @@ fun QuickMenu(
     val gyroMenu = remember(container?.id) { container?.let(::GyroQuickMenuState) }
 
     val controllerItems = buildList {
-        add(
-            QuickMenuItem(
-                id = QuickMenuAction.BATTLE_NET_SIGN_IN,
-                icon = Icons.Default.Key,
-                labelResId = R.string.battle_net_sign_in,
-                accentColor = PluviaTheme.colors.accentPurple,
-            )
-        )
         add(
             QuickMenuItem(
                 id = QuickMenuAction.DISABLE_MOUSE,

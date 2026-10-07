@@ -61,7 +61,7 @@ WOW_SRC="/Applications/World of Warcraft" tools/sync_wow_to_device.sh
 
 ### 3. Play
 
-Open **WoW Forever**. Once your game files are configured, the app automatically launches straight into the game. The first launch downloads the ARM64 game client and installs the Windows environment, which takes a few minutes and needs an internet connection.
+Open **WoW Forever**. Once your game files and Battle.net credentials are configured, the app automatically launches straight into the game. If credentials are not yet configured, the launcher stops at the setup screen so you can enter them before playing. The first launch downloads the ARM64 game client and installs the Windows environment, which takes a few minutes and needs an internet connection.
 
 - **Setup screen:** to access folder settings, forget credentials, check environment status, or view updates, hold **Start + Select + L2 + R2** (or tap the back button) during the loading splash to cancel boot and return to the setup screen.
 - The app creates a basic `WTF/Config.wtf` on first run and always sets `gxApi "D3D11"`, the renderer that works with DXVK.
@@ -69,9 +69,9 @@ Open **WoW Forever**. Once your game files are configured, the app automatically
 ### Controls and signing in
 
 - **Controller:** built-in handheld controllers work in-game. WoW's own gamepad mode handles the mapping.
-- **In-game menu:** press Back (the button or the back swipe gesture) to open the sidebar. It has **Keyboard**, **Sign in to Battle.net**, on-screen controls, performance overlay and **Exit**.
+- **In-game menu:** press Back (the button or the back swipe gesture) to open the sidebar. It has **Keyboard**, on-screen controls, performance overlay and **Exit**.
 - **Keyboard:** the sidebar's **Keyboard** opens the Android keyboard. On dual-screen devices like the Thor it appears on the bottom screen. Symbols like `@` work, and so does pasting.
-- **Sign in to Battle.net:** open the sidebar and tap **Sign in to Battle.net**. The app automatically focuses the login fields, enters your credentials, and submits. The first time, it prompts for your email and password and stores them encrypted with the Android Keystore on-device only. Nothing is sent anywhere. To remove the saved login, use **Forget Saved Login** on the launcher setup screen.
+- **Battle.net Auto-Login:** configure credentials directly on the launcher setup screen (**Configure Login** / **Update Login**). Credentials are saved encrypted on-device via Android Keystore. On boot, the launcher generates `_classic_beta_/login.txt`, which the WoW client automatically reads on startup to sign in natively without macro simulation or synthetic clicks. Use **Forget Saved Login** on the launcher setup screen to clear credentials and remove the login file.
   - Authenticator codes still have to be entered by hand.
 
 ---
@@ -146,7 +146,7 @@ GameNative is a general game library with Steam, GOG, Epic, Amazon, EA and Rocks
 - **Package-name fixes:** several paths were hard-coded to `app.gamenative`: the bionic library path rewrite (`WINEMU_HOST_PKG` / `HOST_PKG`), the gamepad shared-memory files, the DXVK state cache and the default drives. The controller path was the reason controllers didn't work.
 - **Small robustness fixes:** non-numeric container IDs no longer crash the ID parser, and the bionic redirect library is copied in if it's missing.
 - **Keyboard fixes:** GameNative's on-screen keyboard dropped shifted symbols (`@` came through as `2`), because it sent key codes without the character or the Shift key. The fix is in `Keyboard.java` and `IMEInputReceiver.kt`. The keyboard now always goes through the IME receiver, so it appears on the Thor's bottom screen.
-- **Battle.net sign-in:** a sidebar item that types a saved, Keystore-encrypted login into WoW (`ui/screen/wow/BattleNetSignIn.kt`). It reliably selects existing fields before typing and moves the cursor off-screen to (0,0) for clean controller play.
+- **Battle.net auto-login:** native `login.txt` client authentication managed via Keystore-encrypted credentials (`ui/screen/wow/BattleNetSignIn.kt`). Eliminates coordinate-based typing macros in favor of the game client's built-in startup authentication, with configuration available directly from the launcher setup screen.
 - **Native In-App Game Updater (v2.0):** Live version check against Blizzard patch services, direct-from-CDN ARM64 binary and manifest downloads, CASC index synchronization, and atomic `.build.info` updates on-device over Wi-Fi without any PC dependency.
 - **Lean runtime & startup:** eliminated continuous background accelerometer polling during gameplay in favor of native OS window management, removed cold-boot bitmap allocations, guarded background performance metric collection loops, and switched DNS to native platform resolution.
 - **Removed:** every store backend (Steam and JavaSteam, GOG, Epic, Amazon, EA, Rockstar), library, login, settings, custom game scanner, and downloads screens, ExoPlayer and browser dependencies, `DownloadService`, `ContainerMigrator`, Nexus mod management, the Meta Quest/XR build, PostHog analytics, Play Integrity, the self-updater, the Room database, the notification prompt, extra bundled Box64/FEX/DXVK versions and the legacy (Android 9) build. That's roughly 135k lines of code and about half the APK size.

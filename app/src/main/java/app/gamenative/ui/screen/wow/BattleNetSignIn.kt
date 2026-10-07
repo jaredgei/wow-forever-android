@@ -12,31 +12,23 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import app.gamenative.Crypto
-import app.gamenative.PluviaApp
-import app.gamenative.externaldisplay.IMEInputReceiver
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.io.File
 
 object BattleNetSignIn {
-    val requested = MutableStateFlow(false)
-
     data class Login(val email: String, val password: String)
 
     fun load(context: Context): Login? {
@@ -61,20 +53,23 @@ object BattleNetSignIn {
         prefs(context).edit().clear().apply()
     }
 
-    suspend fun typeInto(receiver: IMEInputReceiver, login: Login) {
-        val centerX = receiver.screenWidth / 2
-        val emailY = (receiver.screenHeight * 0.505f).toInt()
-        val passwordY = (receiver.screenHeight * 0.648f).toInt()
+    fun writeLoginFile(gameRoot: File, login: Login) {
+        try {
+            val file = File(File(gameRoot, WowClientDownloader.FLAVOR_DIR), "login.txt")
+            file.parentFile?.mkdirs()
+            file.writeText("${login.email}\n${login.password}\n")
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to write login.txt")
+        }
+    }
 
-        receiver.clickAt(centerX, passwordY)
-        delay(200)
-        receiver.clickAt(centerX, emailY)
-        delay(200)
-        receiver.typeText(login.email + "\t")
-        delay(KEY_SETTLE_MS)
-        receiver.typeText(login.password + "\n")
-        delay(KEY_SETTLE_MS)
-        receiver.movePointerTo(0, 0)
+    fun removeLoginFile(gameRoot: File) {
+        try {
+            val file = File(File(gameRoot, WowClientDownloader.FLAVOR_DIR), "login.txt")
+            if (file.exists()) file.delete()
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to remove login.txt")
+        }
     }
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -82,7 +77,6 @@ object BattleNetSignIn {
     private const val PREFS = "battle_net_login"
     private const val KEY_EMAIL = "email"
     private const val KEY_PASSWORD = "password"
-    private const val KEY_SETTLE_MS = 300L
 }
 
 @Composable
@@ -104,7 +98,7 @@ fun BattleNetCredentialDialog(
         title = { Text("Battle.net login") },
         text = {
             Column {
-                Text("Saved encrypted on this device only. Select WoW's email field before signing in.")
+                Text("Saved encrypted on this device. WoW will automatically log in on launch.")
                 Spacer(Modifier.height(12.dp))
                 OutlinedTextField(
                     value = email,
@@ -128,50 +122,10 @@ fun BattleNetCredentialDialog(
             TextButton(
                 enabled = email.isNotBlank() && password.isNotEmpty(),
                 onClick = { onConfirm(BattleNetSignIn.Login(email.trim(), password)) },
-            ) { Text("Save & sign in") }
+            ) { Text("Save") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }
 
-@Composable
-fun BattleNetSignInHost(onBeforeTyping: () -> Unit) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val requested by BattleNetSignIn.requested.collectAsState()
-    var showDialog by remember { mutableStateOf(false) }
-
-    fun signIn(login: BattleNetSignIn.Login) {
-        val receiver = PluviaApp.imeInputReceiver ?: return
-        onBeforeTyping()
-        scope.launch {
-            delay(MENU_CLOSE_MS)
-            BattleNetSignIn.typeInto(receiver, login)
-        }
-    }
-
-    LaunchedEffect(requested) {
-        if (!requested) return@LaunchedEffect
-        BattleNetSignIn.requested.value = false
-        val saved = BattleNetSignIn.load(context)
-        if (saved != null) {
-            signIn(saved)
-        } else {
-            showDialog = true
-        }
-    }
-
-    if (showDialog) {
-        BattleNetCredentialDialog(
-            onDismiss = { showDialog = false },
-            onConfirm = { login ->
-                showDialog = false
-                BattleNetSignIn.save(context, login)
-                signIn(login)
-            },
-        )
-    }
-}
-
-private const val MENU_CLOSE_MS = 600L
 private const val DIALOG_SETTLE_MS = 300L

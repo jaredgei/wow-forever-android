@@ -105,8 +105,6 @@ import app.gamenative.ui.component.parsePositiveFpsLimit
 import app.gamenative.ui.data.PerformanceHudConfig
 import app.gamenative.ui.data.PerformanceHudSize
 import app.gamenative.ui.data.XServerState
-import app.gamenative.ui.screen.wow.BattleNetSignIn
-import app.gamenative.ui.screen.wow.BattleNetSignInHost
 import app.gamenative.ui.widget.PerformanceHudView
 import app.gamenative.utils.AssetUtils
 import app.gamenative.utils.ContainerUtils
@@ -555,7 +553,6 @@ fun XServerScreen(
     var debugGestureName by remember { mutableStateOf("") }
     var debugGestureKey by remember { mutableIntStateOf(0) }
     var keyboardRequestedFromOverlay by remember { mutableStateOf(false) }
-    var bnetSignInRequestedFromOverlay by remember { mutableStateOf(false) }
     var shouldForceResumeOnMenuClose by remember { mutableStateOf(false) }
     var showQuickMenu by remember { mutableStateOf(false) }
     var quickMenuToolsVisible by remember { mutableStateOf(false) }
@@ -1093,9 +1090,8 @@ fun XServerScreen(
         if (!keyboardRequestedFromOverlay) {
             imeInputReceiver?.hideKeyboard()
         }
-        shouldForceResumeOnMenuClose = (keyboardRequestedFromOverlay || bnetSignInRequestedFromOverlay) && manualResumeMode && !keepPausedForEditor
+        shouldForceResumeOnMenuClose = keyboardRequestedFromOverlay && manualResumeMode && !keepPausedForEditor
         keyboardRequestedFromOverlay = false
-        bnetSignInRequestedFromOverlay = false
         showQuickMenu = false
     }
 
@@ -1135,12 +1131,6 @@ fun XServerScreen(
 
     val onQuickMenuItemSelected: (Int) -> Boolean = { itemId ->
         when (itemId) {
-            QuickMenuAction.BATTLE_NET_SIGN_IN -> {
-                bnetSignInRequestedFromOverlay = true
-                BattleNetSignIn.requested.value = true
-                true
-            }
-
             QuickMenuAction.KEYBOARD -> {
                 keyboardRequestedFromOverlay = true
                 showSoftKeyboard(view, "onscreen_keyboard_enabled")
@@ -2695,13 +2685,6 @@ fun XServerScreen(
                 }
             )
         }
-
-        BattleNetSignInHost(
-            onBeforeTyping = {
-                dismissOverlayMenu()
-                forceResumeIfSuspended()
-            },
-        )
 
         QuickMenu(
             isVisible = showQuickMenu,
