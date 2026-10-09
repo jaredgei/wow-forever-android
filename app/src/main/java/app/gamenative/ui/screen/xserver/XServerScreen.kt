@@ -432,8 +432,11 @@ fun XServerScreen(
     var taskAffinityMask = 0
     var taskAffinityMaskWoW64 = 0
 
-    LaunchedEffect(appId) {
+    DisposableEffect(Unit) {
         isExiting.set(false)
+        onDispose {
+            isExiting.set(false)
+        }
     }
 
     val container = remember(appId) {
@@ -3913,6 +3916,11 @@ private fun exit(
         Timber.e(e, "winHandler.stop() failed during exit")
     }
     PluviaApp.shutdownEnvironment()
+    try {
+        ProcessHelper.killAllWineProcesses()
+    } catch (e: Exception) {
+        Timber.e(e, "killAllWineProcesses failed during exit")
+    }
 
     // empty Wine/XDG trash in background after container stops
     CoroutineScope(Dispatchers.IO).launch {
@@ -3934,6 +3942,7 @@ private fun exit(
     }
     frameRating?.writeSessionSummary()
     onExit(null)
+    isExiting.set(false)
     navigateBack()
 }
 

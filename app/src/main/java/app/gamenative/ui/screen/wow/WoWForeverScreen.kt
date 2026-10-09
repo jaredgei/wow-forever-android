@@ -62,6 +62,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -221,6 +222,7 @@ fun WoWForeverScreen(
         checkFiles()
         isLaunching = false
         statusText = READY_STATUS
+        BattleNetSignIn.removeLoginFile(File(gamePath))
         if (versionStatus == null && !WoWLauncherState.shouldAutoLaunch) {
             checkVersionStatus()
         }
@@ -238,7 +240,10 @@ fun WoWForeverScreen(
     }
 
     DisposableEffect(Unit) {
-        val reset: (Any) -> Unit = { resetLaunch() }
+        val reset: (Any) -> Unit = {
+            resetLaunch()
+            BattleNetSignIn.removeLoginFile(File(gamePath))
+        }
         PluviaApp.events.on<AndroidEvent.ForceCloseApp, Unit>(reset)
         PluviaApp.events.on<AndroidEvent.GuestProgramTerminated, Unit>(reset)
         onDispose {
@@ -899,6 +904,7 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, onS
     val arm64Exe = File(gameRoot, "$FLAVOR_DIR/$EXE_NAME")
     BattleNetSignIn.load(context)?.let { login ->
         BattleNetSignIn.writeLoginFile(gameRoot, login)
+        BattleNetSignIn.startLoginWatcher(gameRoot)
     }
     if (!arm64Exe.exists()) {
         try {

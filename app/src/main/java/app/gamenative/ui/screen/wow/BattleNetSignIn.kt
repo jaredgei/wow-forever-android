@@ -24,7 +24,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import app.gamenative.Crypto
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.io.File
 
@@ -66,9 +70,28 @@ object BattleNetSignIn {
     fun removeLoginFile(gameRoot: File) {
         try {
             val file = File(File(gameRoot, WowClientDownloader.FLAVOR_DIR), "login.txt")
-            if (file.exists()) file.delete()
+            if (file.exists()) {
+                file.writeBytes(ByteArray(file.length().coerceAtMost(4096).toInt()))
+                file.delete()
+            }
         } catch (e: Exception) {
             Timber.e(e, "Failed to remove login.txt")
+        }
+    }
+
+    fun startLoginWatcher(gameRoot: File) {
+        CoroutineScope(Dispatchers.IO).launch {
+            val hotfixLog = File(File(gameRoot, WowClientDownloader.FLAVOR_DIR), "Logs/Hotfix.log")
+            hotfixLog.delete()
+            val deadline = System.currentTimeMillis() + 180_000L
+            while (isActive && System.currentTimeMillis() < deadline) {
+                delay(1000L)
+                if (hotfixLog.exists() && hotfixLog.length() > 50_000L) {
+                    removeLoginFile(gameRoot)
+                    return@launch
+                }
+            }
+            removeLoginFile(gameRoot)
         }
     }
 

@@ -45,8 +45,8 @@ android {
         manifestPlaceholders["screenOrientation"] = "unspecified"
         buildConfigField("boolean", "XR_BUILD", "false")
 
-        versionCode = 222
-        versionName = "2.2.2"
+        versionCode = 223
+        versionName = "2.2.3"
 
         buildConfigField("boolean", "GOLD", "false")
         val iconValue = "@mipmap/ic_launcher"
@@ -111,7 +111,7 @@ android {
             isDebuggable = true
             isMinifyEnabled = false
             isShrinkResources = false
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName(if (keystoreProperties != null) "release" else "debug")
         }
         release {
             isMinifyEnabled = true
