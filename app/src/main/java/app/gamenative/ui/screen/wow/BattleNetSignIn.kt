@@ -1,6 +1,7 @@
 package app.gamenative.ui.screen.wow
 
 import android.content.Context
+import android.os.FileObserver
 import android.util.Base64
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -24,11 +25,12 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import app.gamenative.Crypto
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import timber.log.Timber
 import java.io.File
 
@@ -59,7 +61,7 @@ object BattleNetSignIn {
 
     fun writeLoginFile(gameRoot: File, login: Login) {
         try {
-            val file = File(File(gameRoot, WowClientDownloader.FLAVOR_DIR), "login.txt")
+            val file = File(File(gameRoot, WowClientDownloader.FLAVOR_DIR), LOGIN_FILE)
             file.parentFile?.mkdirs()
             file.writeText("${login.email}\n${login.password}\n")
         } catch (e: Exception) {
@@ -69,7 +71,7 @@ object BattleNetSignIn {
 
     fun removeLoginFile(gameRoot: File) {
         try {
-            val file = File(File(gameRoot, WowClientDownloader.FLAVOR_DIR), "login.txt")
+            val file = File(File(gameRoot, WowClientDownloader.FLAVOR_DIR), LOGIN_FILE)
             if (file.exists()) {
                 file.writeBytes(ByteArray(file.length().coerceAtMost(4096).toInt()))
                 file.delete()
@@ -81,17 +83,30 @@ object BattleNetSignIn {
 
     fun startLoginWatcher(gameRoot: File) {
         CoroutineScope(Dispatchers.IO).launch {
-            val hotfixLog = File(File(gameRoot, WowClientDownloader.FLAVOR_DIR), "Logs/Hotfix.log")
-            hotfixLog.delete()
-            val deadline = System.currentTimeMillis() + 180_000L
-            while (isActive && System.currentTimeMillis() < deadline) {
-                delay(1000L)
-                if (hotfixLog.exists() && hotfixLog.length() > 50_000L) {
-                    removeLoginFile(gameRoot)
-                    return@launch
+            val flavorDir = File(gameRoot, WowClientDownloader.FLAVOR_DIR)
+            val loginFile = File(flavorDir, LOGIN_FILE)
+            if (!loginFile.isFile) return@launch
+
+            val consumed = CompletableDeferred<Unit>()
+            val observer = object : FileObserver(flavorDir, OPEN or CLOSE_NOWRITE) {
+                private var loginOpened = false
+
+                override fun onEvent(event: Int, path: String?) {
+                    if (path != LOGIN_FILE) return
+                    when {
+                        event and OPEN != 0 -> loginOpened = true
+                        loginOpened && event and CLOSE_NOWRITE != 0 -> consumed.complete(Unit)
+                    }
                 }
             }
-            removeLoginFile(gameRoot)
+
+            observer.startWatching()
+            try {
+                withTimeoutOrNull(LOGIN_FILE_TIMEOUT_MS) { consumed.await() }
+            } finally {
+                observer.stopWatching()
+                removeLoginFile(gameRoot)
+            }
         }
     }
 
@@ -100,6 +115,8 @@ object BattleNetSignIn {
     private const val PREFS = "battle_net_login"
     private const val KEY_EMAIL = "email"
     private const val KEY_PASSWORD = "password"
+    private const val LOGIN_FILE = "login.txt"
+    private const val LOGIN_FILE_TIMEOUT_MS = 120_000L
 }
 
 @Composable

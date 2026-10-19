@@ -20,9 +20,8 @@ object WowClientDownloader {
     const val BUILD_INFO = ".build.info"
     private const val PLATFORM_ARCH = "arm64"
     private const val EXCLUDED_ARCH = "x86_64"
-    private const val PATCH_URL = "http://us.patch.battle.net:1119/$TARGET_PRODUCT"
+    private const val DEFAULT_REGION = "us"
     private const val DEFAULT_CDN_PATH = "tpr/wow"
-    private val DEFAULT_CDN_HOSTS = listOf("level3.blizzard.com", "us.cdn.blizzard.com")
 
     private val patchHttp by lazy {
         Net.http.newBuilder()
@@ -39,6 +38,7 @@ object WowClientDownloader {
         val remoteBuildConfig: String = "",
         val remoteCdnConfig: String = "",
         val remoteCdnHosts: List<String> = emptyList(),
+        val remoteCdnServers: List<String> = emptyList(),
         val remoteCdnPath: String = DEFAULT_CDN_PATH,
     )
 
@@ -63,15 +63,19 @@ object WowClientDownloader {
             Timber.w("checkVersion: row has no Build Key")
             return null
         }
+        val region = normalizeRegion(row["Branch"])
+        val versionServiceBase = versionServiceBase(region)
 
-        val versions = runCatching { fetchText("$PATCH_URL/versions") }.getOrElse {
-            Timber.w(it, "checkVersion: http call failed")
+        val versions = runCatching { fetchText("$versionServiceBase/versions") }.getOrElse {
+            Timber.w(it, "checkVersion: HTTPS version-service call failed")
             return null
         } ?: run {
             Timber.w("checkVersion: response body is null or unsuccessful")
             return null
         }
-        val remoteRow = parsePsv(versions).firstOrNull()
+        val remoteRows = parsePsv(versions)
+        val remoteRow = remoteRows.firstOrNull { it["Region"].equals(region, ignoreCase = true) }
+            ?: remoteRows.firstOrNull()
             ?: run {
                 Timber.w("checkVersion: no remote row in $versions")
                 return null
@@ -83,8 +87,8 @@ object WowClientDownloader {
             }
         val remoteBuildKey = remoteRow["BuildConfig"].orEmpty()
 
-        val cdns = runCatching { fetchText("$PATCH_URL/cdns") }.getOrNull()?.let(::parsePsv).orEmpty()
-        val cdnsRow = cdns.firstOrNull { it["Name"] == "us" } ?: cdns.firstOrNull()
+        val cdns = runCatching { fetchText("$versionServiceBase/cdns") }.getOrNull()?.let(::parsePsv).orEmpty()
+        val cdnsRow = cdns.firstOrNull { it["Name"].equals(region, ignoreCase = true) } ?: cdns.firstOrNull()
 
         val isOutdated = localVersion != remoteVersion || (remoteBuildKey.isNotBlank() && localBuildKey != remoteBuildKey)
         Timber.i("checkVersion: localVersion=$localVersion, remoteVersion=$remoteVersion, isOutdated=$isOutdated")
@@ -94,14 +98,17 @@ object WowClientDownloader {
             isOutdated = isOutdated,
             remoteBuildConfig = remoteBuildKey,
             remoteCdnConfig = remoteRow["CDNConfig"].orEmpty(),
-            remoteCdnHosts = (cdnsRow?.get("Hosts") ?: row["CDN Hosts"])?.let(::splitHosts) ?: DEFAULT_CDN_HOSTS,
+            remoteCdnHosts = (cdnsRow?.get("Hosts") ?: row["CDN Hosts"])?.let(::splitHosts).orEmpty(),
+            remoteCdnServers = secureCdnServers(cdnsRow?.get("Servers"))
+                .ifEmpty { secureCdnServers(row["CDN Servers"]) }
+                .ifEmpty { defaultCdnServers(region) },
             remoteCdnPath = cdnsRow?.get("Path") ?: row["CDN Path"] ?: DEFAULT_CDN_PATH,
         )
     }
 
     fun updateGame(gameRoot: File, target: VersionCheckResult, onStatus: (String) -> Unit) {
         val cdn = Cdn(
-            hosts = target.remoteCdnHosts.ifEmpty { DEFAULT_CDN_HOSTS },
+            servers = target.remoteCdnServers,
             path = target.remoteCdnPath.ifEmpty { DEFAULT_CDN_PATH },
         )
         onStatus("Fetching build ${target.remoteVersion} manifest...")
@@ -131,7 +138,11 @@ object WowClientDownloader {
         val latest = checkVersion(gameRoot)
         if (latest != null && latest.remoteBuildConfig.isNotBlank()) return updateGame(gameRoot, latest, onStatus)
 
-        val cdn = Cdn(hosts = splitHosts(row.getValue("CDN Hosts")), path = row.getValue("CDN Path"))
+        val region = normalizeRegion(row["Branch"])
+        val cdn = Cdn(
+            servers = secureCdnServers(row["CDN Servers"]).ifEmpty { defaultCdnServers(region) },
+            path = row.getValue("CDN Path"),
+        )
         onStatus("Reading build ${row["Version"].orEmpty()} manifest...")
         syncClient(
             gameRoot = gameRoot,
@@ -236,15 +247,17 @@ object WowClientDownloader {
         }
     }
 
-    private class Cdn(val hosts: List<String>, val path: String) {
+    private class Cdn(val servers: List<String>, val path: String) {
         fun require(kind: String, key: String) = fetch(kind, key) ?: throw IOException("CDN is missing $kind/$key")
 
         fun fetch(kind: String, key: String, range: LongRange? = null): ByteArray? {
             var failure: IOException? = null
             var missing = false
-            for (host in hosts) {
+            for (server in servers) {
+                if (!server.startsWith("https://", ignoreCase = true)) continue
+                val base = server.trimEnd('/')
                 val request = Request.Builder()
-                    .url("http://$host/$path/$kind/${key.substring(0, 2)}/${key.substring(2, 4)}/$key")
+                    .url("$base/$path/$kind/${key.substring(0, 2)}/${key.substring(2, 4)}/$key")
                     .apply { if (range != null) header("Range", "bytes=${range.first}-${range.last}") }
                     .build()
                 try {
@@ -252,7 +265,7 @@ object WowClientDownloader {
                         when {
                             response.isSuccessful -> return response.body!!.bytes()
                             response.code == 403 || response.code == 404 -> missing = true
-                            else -> failure = IOException("HTTP ${response.code} from $host")
+                            else -> failure = IOException("HTTPS ${response.code} from $base")
                         }
                     }
                 } catch (e: IOException) {
@@ -260,7 +273,7 @@ object WowClientDownloader {
                 }
             }
             if (missing) return null
-            throw failure ?: IOException("No CDN hosts in $BUILD_INFO")
+            throw failure ?: IOException("No HTTPS CDN servers available")
         }
     }
 
@@ -399,6 +412,42 @@ object WowClientDownloader {
     }
 
     private fun psvHeader(line: String) = line.split("|").map { it.substringBefore("!") }
+
+    private fun normalizeRegion(region: String?): String {
+        val normalized = region?.trim()?.lowercase().orEmpty()
+        return normalized.takeIf { it.matches(Regex("[a-z]{2}")) } ?: DEFAULT_REGION
+    }
+
+    internal fun versionServiceBase(region: String): String {
+        val normalized = normalizeRegion(region)
+        return if (normalized == "cn") {
+            "https://cn.version.battlenet.com.cn/v2/products/$TARGET_PRODUCT"
+        } else {
+            "https://$normalized.version.battle.net/v2/products/$TARGET_PRODUCT"
+        }
+    }
+
+    internal fun secureCdnServers(servers: String?): List<String> =
+        servers.orEmpty()
+            .split(" ")
+            .mapNotNull { token ->
+                token.trim()
+                    .takeIf { it.startsWith("https://", ignoreCase = true) }
+                    ?.substringBefore("?")
+                    ?.trimEnd('/')
+                    ?.takeIf { it.isNotBlank() }
+            }
+            .distinct()
+
+    internal fun defaultCdnServers(region: String): List<String> {
+        val normalized = normalizeRegion(region)
+        val regional = when (normalized) {
+            "eu", "kr" -> "https://$normalized.cdn.blizzard.com"
+            "us", "tw" -> "https://us.cdn.blizzard.com"
+            else -> null
+        }
+        return listOfNotNull(regional, "https://level3.ssl.blizzard.com")
+    }
 
     private fun splitHosts(hosts: String) = hosts.split(" ").filter { it.isNotBlank() }
 

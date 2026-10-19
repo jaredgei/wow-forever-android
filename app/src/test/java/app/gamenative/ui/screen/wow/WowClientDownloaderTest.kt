@@ -84,6 +84,46 @@ class WowClientDownloaderTest {
         assertEquals("1.60.1.70205", result?.get("Version"))
     }
 
+
+    @Test
+    fun versionServiceBase_usesRegionalHttpsEndpoint() {
+        assertEquals(
+            "https://eu.version.battle.net/v2/products/wow_classic_beta",
+            WowClientDownloader.versionServiceBase("eu"),
+        )
+        assertEquals(
+            "https://us.version.battle.net/v2/products/wow_classic_beta",
+            WowClientDownloader.versionServiceBase("US"),
+        )
+    }
+
+    @Test
+    fun secureCdnServers_keepsOnlyHttpsAndStripsQueryParameters() {
+        val servers =
+            "http://eu.cdn.blizzard.com/?maxhosts=4 " +
+            "https://eu.cdn.blizzard.com/?maxhosts=4&fallback=1 " +
+            "https://level3.ssl.blizzard.com/?fallback=1&maxhosts=4"
+
+        assertEquals(
+            listOf(
+                "https://eu.cdn.blizzard.com",
+                "https://level3.ssl.blizzard.com",
+            ),
+            WowClientDownloader.secureCdnServers(servers),
+        )
+    }
+
+    @Test
+    fun defaultCdnServers_prefersMatchingRegionOverUs() {
+        assertEquals(
+            listOf(
+                "https://eu.cdn.blizzard.com",
+                "https://level3.ssl.blizzard.com",
+            ),
+            WowClientDownloader.defaultCdnServers("eu"),
+        )
+    }
+
     @Test
     fun readBuildInfo_returnsNullOnMissingFile() {
         val nonExistent = File(tempFolder.root, "does_not_exist")
