@@ -1043,7 +1043,7 @@ private data class GpuProfile(val driver: String, val tuDebug: String, val scree
             if (GPUInformation.isAdreno8Elite(context)) return true
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 val soc = Build.SOC_MODEL
-                if (soc.contains("SM8750", ignoreCase = true) || soc.contains("SM8850", ignoreCase = true)) return true
+                if (listOf("SM8750", "SM8845", "SM8850").any { soc.contains(it, ignoreCase = true) }) return true
             }
             return Build.HARDWARE.contains("sun", ignoreCase = true)
         }
