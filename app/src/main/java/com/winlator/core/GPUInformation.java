@@ -166,7 +166,7 @@ public abstract class GPUInformation {
 
     public static boolean isAdreno8EliteGen5(Context context) {
         String r = getRenderer(context).toLowerCase(Locale.ENGLISH);
-        return r.contains("adreno") && r.matches(".*\\b8(4[0-9]|5[0-9])\\b.*");
+        return r.contains("adreno") && r.matches(".*\\b8[2-5][0-9]\\b.*");
     }
 
     /**
