@@ -15,6 +15,7 @@ This uses Blizzard's own **Windows ARM64** WoW client, so the game itself runs n
 | AYN Thor (Snapdragon 8 Gen 2 / Adreno 740) | Tested, reaches the game world with controller support |
 | Retroid Pocket 6 (Snapdragon 8 Gen 2 / Adreno 740) | Tested by the original community setup |
 | AYN Odin 2 / Mini (Snapdragon 8 Gen 2) | Expected to work |
+| OnePlus 15r (Snapdragon 8 Gen 5 / Adreno 829) | Tested in-world by Nathangarl |
 | AYN Odin Portal (Snapdragon 8 Elite / Adreno 830) | Supported via bundled Turnip v32 driver |
 | RedMagic 11 Pro (Snapdragon 8 Elite / Adreno 840) | Tested in-world by arusiasotto |
 | Poco F7 (Snapdragon 8s Gen 4 / Adreno 825) | Tested by gusebus |
