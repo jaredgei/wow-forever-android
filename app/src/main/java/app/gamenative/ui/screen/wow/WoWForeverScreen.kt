@@ -13,12 +13,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AspectRatio
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
@@ -96,6 +99,8 @@ fun WoWForeverScreen(
     var isLaunching by remember { mutableStateOf(false) }
     var launchJob by remember { mutableStateOf<Job?>(null) }
     var hasSavedLogin by remember { mutableStateOf(BattleNetSignIn.load(context) != null) }
+    var region by remember(gamePath, files) { mutableStateOf(GameRegion.current(context, gamePath)) }
+    var resolution by remember { mutableStateOf(RenderResolution.current(context, gpu.screenSize)) }
     var showLoginDialog by remember { mutableStateOf(false) }
     var statusText by remember { mutableStateOf(READY_STATUS) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -204,7 +209,7 @@ fun WoWForeverScreen(
 
         launchJob = scope.launch {
             try {
-                val screenSize = fitScreenSizeToWindow(context, gpu.screenSize)
+                val screenSize = fitScreenSizeToWindow(context, resolution.size)
                 val containerId = withContext(Dispatchers.IO) {
                     prepareLaunch(context, File(gamePath), gpu, screenSize) { msg ->
                         scope.launch(Dispatchers.Main) { statusText = msg }
@@ -462,6 +467,17 @@ fun WoWForeverScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(text = "Target Path: $gamePath", fontSize = 11.sp, color = WowSubtle, maxLines = 2)
+
+                    Row {
+                        OptionMenu("Region: ${region.label}", Icons.Default.Public, GameRegion.entries, region, { it.label }, !isLaunching) {
+                            GameRegion.save(context, it)
+                            region = it
+                        }
+                        OptionMenu("Resolution: ${resolution.label}", Icons.Default.AspectRatio, RenderResolution.entries, resolution, { it.label }, !isLaunching) {
+                            RenderResolution.save(context, it)
+                            resolution = it
+                        }
+                    }
 
                     errorMessage?.let {
                         Spacer(modifier = Modifier.height(10.dp))
@@ -866,8 +882,49 @@ fun WoWForeverScreen(
     }
 }
 
+private fun prefs(context: Context) = context.getSharedPreferences("wow_forever", Context.MODE_PRIVATE)
+
+/**
+ * The Battle.net region WoW logs into. Without the Battle.net app to pick one, WoW stops at a region picker before
+ * login, so the launcher writes it to Config.wtf as the portal.
+ */
+enum class GameRegion(val label: String) {
+    US("Americas"), EU("Europe"), KR("Korea"), TW("Taiwan");
+
+    companion object {
+        private const val KEY_REGION = "region"
+
+        /** The region picked in the launcher, or null to keep the install's current portal. */
+        fun saved(context: Context): GameRegion? = prefs(context).getString(KEY_REGION, null)?.let(::of)
+
+        fun save(context: Context, region: GameRegion) {
+            prefs(context).edit().putString(KEY_REGION, region.name).apply()
+        }
+
+        fun current(context: Context, gamePath: String): GameRegion = saved(context) ?: of(portalOf(File(gamePath))) ?: US
+
+        private fun of(portal: String) = entries.firstOrNull { it.name.equals(portal, ignoreCase = true) }
+    }
+}
+
+/** The 16:9 render budget, before it's reshaped to the window's aspect ratio. Defaults to the GPU profile's size. */
+enum class RenderResolution(val size: String, val label: String) {
+    HD("1280x720", "720p"), FULL_HD("1920x1080", "1080p");
+
+    companion object {
+        private const val KEY_RESOLUTION = "resolution"
+
+        fun current(context: Context, default: String): RenderResolution =
+            prefs(context).getString(KEY_RESOLUTION, null)?.let { saved -> entries.firstOrNull { it.name == saved } }
+                ?: entries.first { it.size == default }
+
+        fun save(context: Context, resolution: RenderResolution) {
+            prefs(context).edit().putString(KEY_RESOLUTION, resolution.name).apply()
+        }
+    }
+}
+
 object GamePath {
-    private const val PREFS = "wow_forever"
     private const val KEY_GAME_PATH = "game_path"
 
     private val defaultPath = File(Environment.getExternalStorageDirectory(), "WoW Forever")
@@ -902,7 +959,7 @@ object GamePath {
      * each SD card) that holds an install, preferring the full release over the beta.
      */
     fun load(context: Context): String {
-        val saved = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_GAME_PATH, null)?.let(::File)
+        val saved = prefs(context).getString(KEY_GAME_PATH, null)?.let(::File)
         if (saved != null && saved.isDirectory) return saved.absolutePath
         val defaults = listOf(defaultPath) + context.getExternalFilesDirs(null).drop(1).filterNotNull()
             .map { File(it.path.substringBefore("/Android/"), defaultPath.name) }
@@ -915,7 +972,7 @@ object GamePath {
         if (picked.listFiles().isNullOrEmpty()) picked else File(picked, defaultPath.name)
 
     fun save(context: Context, path: String) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_GAME_PATH, path).apply()
+        prefs(context).edit().putString(KEY_GAME_PATH, path).apply()
     }
 
     fun isReady(context: Context, path: String = load(context)): Boolean =
@@ -1008,6 +1065,34 @@ private fun LinkButton(text: String, icon: ImageVector, enabled: Boolean = true,
 }
 
 @Composable
+private fun <T> OptionMenu(
+    text: String,
+    icon: ImageVector,
+    options: List<T>,
+    selected: T,
+    optionLabel: (T) -> String,
+    enabled: Boolean,
+    onSelect: (T) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        LinkButton(text, icon, enabled) { expanded = true }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(optionLabel(option)) },
+                    trailingIcon = { if (option == selected) Icon(Icons.Default.Check, contentDescription = null, tint = WowGold) },
+                    onClick = {
+                        expanded = false
+                        if (option != selected) onSelect(option)
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun CheckItem(label: String, ready: Boolean) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(
@@ -1078,7 +1163,7 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, scr
 
     check(File(gameRoot, BUILD_INFO).exists()) { "Missing $BUILD_INFO in $gameRoot. Copy it from your WoW install." }
     try {
-        ensureGameConfig(gameRoot, screenSize)
+        ensureGameConfig(gameRoot, screenSize, GameRegion.saved(context))
     } catch (e: Exception) {
         if (e.isPermissionDenied()) throw StorageAccessDeniedException(e)
         throw e
@@ -1134,6 +1219,9 @@ private fun containerConfig(gameRoot: File, gpu: GpuProfile, screenSize: String)
         put("executablePath", "G:\\$FLAVOR_DIR\\$EXE_NAME")
         put("execArgs", "-d3d11")
         put("showFPS", true)
+        // Keep running in the background: a suspended client drops its Battle.net connection, e.g. while the
+        // player fetches an authenticator code from another app.
+        put("suspendPolicy", Container.SUSPEND_POLICY_NEVER)
         put("startupSelection", Container.STARTUP_SELECTION_AGGRESSIVE.toInt())
         put("wow64Mode", true)
         put("wincomponents", "direct3d=0,directsound=0,directinput8=0,directinput=0,directmusic=0,directshow=0,directplay=0,vcrun2010=0,wmdecoder=0,opengl=0")
@@ -1172,20 +1260,20 @@ private val CONFIG_DEFAULTS = linkedMapOf(
     "accessibilityScreenNarrationEnabled" to "\"0\"",
 )
 
-private fun ensureGameConfig(root: File, screenSize: String) {
+internal fun ensureGameConfig(root: File, screenSize: String, region: GameRegion?) {
     val flavorDir = File(root, FLAVOR_DIR)
     flavorDir.mkdirs()
     val flavorInfo = File(flavorDir, ".flavor.info")
     if (!flavorInfo.exists()) {
         flavorInfo.writeText("Product Flavor!STRING:0\n$TARGET_PRODUCT\n")
     }
-    // Handheld defaults are only written on first boot so in-game changes stick, with three exceptions.
-    // gxApi is always forced: DXVK only works with D3D11, and a config copied from a Mac would otherwise
-    // select Metal. Resolutions are reset when missing or no longer fitting the screen (e.g. after a fold
-    // or unfold): WoW's "auto" otherwise picks a 720p size because it sees a low-end Intel GPU via Wine.
-    // A missing portal is set to the install's region; without the Battle.net app to supply it, WoW
-    // otherwise stops at a region picker before login.
-    val configWtf = File(flavorDir, "WTF/Config.wtf")
+    // Handheld defaults are only written on first boot so in-game changes stick, with three exceptions that are
+    // forced on every launch. gxApi: DXVK only works with D3D11, and a config copied from a Mac would otherwise
+    // select Metal. Resolutions match the container, which the launcher sizes: WoW's "auto" picks a 720p size
+    // because it sees a low-end Intel GPU via Wine, and saves that size on exit as if the player chose it.
+    // The portal is the region picked in the launcher, or kept as is (filled from the install's region when
+    // missing); without the Battle.net app to supply it, WoW otherwise stops at a region picker before login.
+    val configWtf = File(root, CONFIG_WTF)
     val betaConfigWtf = File(root, "$LEGACY_FLAVOR_DIR/WTF/Config.wtf")
     if (!configWtf.exists() && betaConfigWtf.isFile) {
         // Carry the player's settings over from the beta, minus the lines that pointed it at the beta servers.
@@ -1196,35 +1284,28 @@ private fun ensureGameConfig(root: File, screenSize: String) {
     }
     if (!configWtf.exists()) {
         configWtf.parentFile?.mkdirs()
-        val defaults = CONFIG_DEFAULTS + RESOLUTION_KEYS.associateWith { "\"$screenSize\"" }
-        configWtf.writeText(defaults.entries.joinToString("\n") { "SET ${it.key} ${it.value}" } + "\n")
+        configWtf.writeText(CONFIG_DEFAULTS.entries.joinToString("\n") { "SET ${it.key} ${it.value}" } + "\n")
     }
 
-    val gxApi = "SET gxApi ${CONFIG_DEFAULTS.getValue("gxApi")}"
+    val forced = mapOf("gxApi" to CONFIG_DEFAULTS.getValue("gxApi"), "portal" to "\"${region?.name ?: portalOf(root)}\"") +
+        RESOLUTION_KEYS.associateWith { "\"$screenSize\"" }
+    val forcedLines = forced.map { (key, value) -> "SET $key $value" }
     val original = configWtf.readLines()
-    val portal = "SET portal \"${portalOf(root)}\"".takeIf { original.none { it.startsWith("SET portal ", ignoreCase = true) } }
-    val staleResolutionKeys = RESOLUTION_KEYS.filter { key ->
-        val line = original.firstOrNull { it.startsWith("SET $key ", ignoreCase = true) }
-        line == null || !fitsScreen(line.substringAfter(" ").substringAfter(" ").trim('"'), screenSize)
-    }
-    val updated = original.filterNot { line ->
-        line.startsWith("SET gxApi ", ignoreCase = true) || staleResolutionKeys.any { line.startsWith("SET $it ", ignoreCase = true) }
-    } + gxApi + staleResolutionKeys.map { "SET $it \"$screenSize\"" } + listOfNotNull(portal)
-    if (original.none { it == gxApi } || staleResolutionKeys.isNotEmpty() || portal != null) {
-        configWtf.writeText(updated.joinToString("\n") + "\n")
+    if (!original.containsAll(forcedLines)) {
+        val kept = original.filterNot { line -> forced.keys.any { line.startsWith("SET $it ", ignoreCase = true) } }
+        configWtf.writeText((kept + forcedLines).joinToString("\n") + "\n")
     }
 }
 
 private val RESOLUTION_KEYS = listOf("gxFullscreenResolution", "gxWindowedResolution")
 
-private fun portalOf(root: File) =
-    WowClientDownloader.readBuildInfo(File(root, BUILD_INFO))?.get("Branch")?.takeIf { it.isNotBlank() }?.uppercase() ?: "US"
+private const val CONFIG_WTF = "$FLAVOR_DIR/WTF/Config.wtf"
 
-internal fun fitsScreen(resolution: String, screenSize: String): Boolean {
-    val (width, height) = resolution.split("x").map { it.toIntOrNull() ?: return false }.takeIf { it.size == 2 } ?: return false
-    val (screenWidth, screenHeight) = screenSize.split("x").map { it.toInt() }
-    return width in 1..screenWidth && height in 1..screenHeight
-}
+// The portal Config.wtf already points at, else the install's region from .build.info.
+private fun portalOf(root: File) =
+    File(root, CONFIG_WTF).takeIf { it.isFile }?.readLines()?.firstOrNull { it.startsWith("SET portal ", ignoreCase = true) }
+        ?.substringAfter(" ")?.substringAfter(" ")?.trim('"')?.takeIf { it.isNotBlank() }
+        ?: WowClientDownloader.readBuildInfo(File(root, BUILD_INFO))?.get("Branch")?.takeIf { it.isNotBlank() }?.uppercase() ?: "US"
 
 private fun installBundledComponents(context: Context, onStatus: (String) -> Unit) {
     installDriver(context, DEFAULT_DRIVER, "turnip-wow-scheduler-test.zip", onStatus)

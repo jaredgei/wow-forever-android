@@ -1,8 +1,6 @@
 package app.gamenative.ui.screen.wow
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class FitScreenSizeTest {
@@ -35,18 +33,5 @@ class FitScreenSizeTest {
     @Test
     fun unknownWindow_keepsBaseSize() {
         assertEquals("1280x720", fitScreenSize("1280x720", 0, 0))
-    }
-
-    @Test
-    fun fitsScreen_acceptsSameOrSmallerResolution() {
-        assertTrue(fitsScreen("1104x834", "1104x834"))
-        assertTrue(fitsScreen("800x600", "1104x834"))
-    }
-
-    @Test
-    fun fitsScreen_rejectsLargerOrInvalidResolution() {
-        assertFalse(fitsScreen("1920x1080", "1104x834"))
-        assertFalse(fitsScreen("1206x764", "1104x834"))
-        assertFalse(fitsScreen("auto", "1104x834"))
     }
 }

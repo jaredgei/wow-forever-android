@@ -83,6 +83,8 @@ Once your game files and Battle.net credentials are configured, the app automati
 
 - **Setup screen:** to access folder settings, forget credentials, check environment status, or view updates, hold **Start + Select + L2 + R2** (or tap the back button) during the loading splash to cancel boot and return to the setup screen.
 - The app creates a basic `WTF/Config.wtf` on first run and always sets `gxApi "D3D11"`, the renderer that works with DXVK.
+- **Region:** tap **Region** on the setup screen to choose Americas, Europe, Korea or Taiwan. The game logs straight into that region without showing its region picker. New installs default to a guess based on the phone's country.
+- **Resolution:** tap **Resolution** on the setup screen to choose 720p or 1080p. Adreno 740 devices default to 1080p and Adreno 8xx devices to 720p, which runs much smoother there. The game's resolution is set from this on every launch and reshaped to fit non-16:9 screens.
 
 ### Controls and signing in
 
@@ -90,7 +92,7 @@ Once your game files and Battle.net credentials are configured, the app automati
 - **In-game menu:** press Back (the button or the back swipe gesture) to open the sidebar. It has **Keyboard**, on-screen controls, performance overlay and **Exit**.
 - **Keyboard:** the sidebar's **Keyboard** opens the Android keyboard. On dual-screen devices like the Thor it appears on the bottom screen. Symbols like `@` work, and so does pasting.
 - **Battle.net Auto-Login:** configure credentials directly on the launcher setup screen (**Configure Login** / **Update Login**). Credentials are saved encrypted on-device via Android Keystore. On boot, the launcher generates `_forever_/login.txt`, which the WoW client automatically reads on startup to sign in natively without macro simulation or synthetic clicks. Use **Forget Saved Login** on the launcher setup screen to clear credentials and remove the login file.
-  - Authenticator codes still have to be entered by hand.
+  - Authenticator codes still have to be entered by hand. The game keeps running when you switch apps, so you can grab a code from an authenticator app on the same device.
 
 ---
 
