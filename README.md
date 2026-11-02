@@ -54,6 +54,8 @@ The game runs as Blizzard's own Windows ARM64 client under Wine, with DXVK and a
 | AYN Odin 2 / Odin 2 Mini | Snapdragon 8 Gen 2 | Expected to work |
 | AYN Odin 3 / Odin Portal | Snapdragon 8 Elite | Supported through the bundled Adreno 8xx driver |
 | Xiaomi tablet (model 25097RP43G) | Snapdragon 8s Gen 4 | Reported working |
+| Poco F7 | Snapdragon 8s Gen 4 | Reported working (upstream) |
+| OnePlus 15r | Snapdragon 8 Gen 5 | Reported working in-world (upstream) |
 | RedMagic 11 Pro | Snapdragon 8 Elite | Reported working in-world |
 | Samsung Galaxy S23, S24, S25, Z Fold | Snapdragon 8 Gen 2 and later | Supported |
 | Lenovo Legion Y700 Gen 3 | Snapdragon 8 Gen 3 | Reported working |
@@ -119,7 +121,7 @@ The GitHub catalog lives in [`catalog/sources.json`](catalog/sources.json) and i
 - **Controls.** Use the D-pad or stick to move and **A** to select. **B** goes back. In the game, your handheld's controller works through WoW's own gamepad mode.
 - **Back to the launcher.** While the game is starting, hold **Start + Select + L2 + R2**, or tap the back arrow, to cancel and return to the home screen.
 - **In-game menu.** Press Back during play to open the sidebar with the on-screen keyboard, the performance overlay and **Exit**.
-- **Authenticator codes** are still typed in the game.
+- **Authenticator codes** are still typed in the game. The game keeps running when you switch apps, so you can get a code from an authenticator app on the same device.
 
 ### How your login is stored
 

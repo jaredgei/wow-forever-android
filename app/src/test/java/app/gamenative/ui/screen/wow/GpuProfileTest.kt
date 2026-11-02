@@ -47,6 +47,8 @@ class GpuProfileTest {
         // Snapdragon 8 Elite and 8 Elite Gen 5, as before.
         assertTrue(isAdreno8xx("Adreno (TM) 830", "", "qcom"))
         assertTrue(isAdreno8xx("", "SM8850", "qcom"))
+        // Snapdragon 8 Gen 5 (SM8845, Adreno 829), found by upstream.
+        assertTrue(isAdreno8xx("", "SM8845", "qcom"))
         assertTrue(isAdreno8xx("", "", "sun"))
     }
 

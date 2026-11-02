@@ -934,12 +934,12 @@ internal fun graphicsDriverConfig(gpu: GpuProfile): String =
 
 /**
  * Any Adreno 8xx GPU: the renderer says "Adreno (TM) 8xx", or the chip is one of the Snapdragon 8xx-GPU
- * parts (SM8735 8s Gen 4, SM8750 8 Elite, SM8850 8 Elite Gen 5; "sun" is the 8 Elite's board name).
+ * parts (SM8735 8s Gen 4, SM8750 8 Elite, SM8845 8 Gen 5, SM8850 8 Elite Gen 5; "sun" is the 8 Elite's board name).
  * The 7xx driver can't run these, so WoW would see no usable graphics card.
  */
 internal fun isAdreno8xx(renderer: String, socModel: String, hardware: String): Boolean =
     Regex("""adreno\D*8\d\d""", RegexOption.IGNORE_CASE).containsMatchIn(renderer) ||
-        listOf("SM8735", "SM8750", "SM8850").any { socModel.contains(it, ignoreCase = true) } ||
+        listOf("SM8735", "SM8750", "SM8845", "SM8850").any { socModel.contains(it, ignoreCase = true) } ||
         hardware.contains("sun", ignoreCase = true)
 
 /** Meta Quest 3 or 3S: Oculus hardware with the Snapdragon XR2 Gen 2 (SXR2230P). */
@@ -1049,6 +1049,9 @@ private fun containerConfig(gameRoot: File, product: WowProduct, gpu: GpuProfile
         put("executablePath", "G:\\${product.flavorDir}\\${product.armExe}")
         put("execArgs", "-d3d11")
         put("showFPS", true)
+        // Keep running in the background: a suspended client drops its Battle.net connection, e.g. while the
+        // player fetches an authenticator code from another app (found by upstream).
+        put("suspendPolicy", Container.SUSPEND_POLICY_NEVER)
         put("startupSelection", Container.STARTUP_SELECTION_AGGRESSIVE.toInt())
         put("wow64Mode", true)
         put("wincomponents", "direct3d=0,directsound=0,directinput8=0,directinput=0,directmusic=0,directshow=0,directplay=0,vcrun2010=0,wmdecoder=0,opengl=0")
@@ -1124,8 +1127,9 @@ private fun ensureGameConfig(root: File, product: WowProduct, screenSize: String
  * Returns the Config.wtf lines to write, or null when [existing] needs no change.
  * Handheld defaults are only written on first boot so in-game changes stick, with two exceptions.
  * gxApi is always forced: DXVK only works with D3D11, and a config copied from a Mac would otherwise
- * select Metal. Resolutions are reset when missing or no longer fitting the screen (e.g. after a fold
- * or unfold): WoW's "auto" otherwise picks a 720p size because it sees a low-end Intel GPU via Wine.
+ * select Metal. Resolutions always match the container, which the launcher sizes from Settings, Resolution:
+ * WoW's "auto" picks a 720p size because it sees a low-end Intel GPU via Wine, and saves that size on exit
+ * as if the player chose it (found by upstream).
  */
 internal fun buildConfigWtf(
     existing: List<String>?,
@@ -1139,10 +1143,7 @@ internal fun buildConfigWtf(
         val defaults = configDefaults(product, locale, portal) + RESOLUTION_KEYS.associateWith { "\"$screenSize\"" }
         return defaults.entries.map { "SET ${it.key} ${it.value}" }
     }
-    val staleResolutionKeys = RESOLUTION_KEYS.filter { key ->
-        val line = existing.firstOrNull { it.startsWith("SET $key ", ignoreCase = true) }
-        line == null || !fitsScreen(line.substringAfter(" ").substringAfter(" ").trim('"'), screenSize)
-    }
+    val staleResolutionKeys = RESOLUTION_KEYS.filter { key -> existing.none { it == "SET $key \"$screenSize\"" } }
     // A config carried over from another product (e.g. beta to launch) gets this product's portal and agent.
     // Once the player has picked a region ([forcePortal]) the portal follows it; before that a hand-edited one stays.
     val portalLine = "SET portal \"$portal\""
@@ -1180,12 +1181,6 @@ internal fun installPortal(root: File, product: WowProduct): String {
 }
 
 private val RESOLUTION_KEYS = listOf("gxFullscreenResolution", "gxWindowedResolution")
-
-internal fun fitsScreen(resolution: String, screenSize: String): Boolean {
-    val (width, height) = resolution.split("x").map { it.toIntOrNull() ?: return false }.takeIf { it.size == 2 } ?: return false
-    val (screenWidth, screenHeight) = screenSize.split("x").map { it.toInt() }
-    return width in 1..screenWidth && height in 1..screenHeight
-}
 
 private fun installBundledComponents(context: Context, onStatus: (String) -> Unit) {
     installDriver(context, DEFAULT_DRIVER, "turnip-wow-scheduler-test.zip", onStatus)
