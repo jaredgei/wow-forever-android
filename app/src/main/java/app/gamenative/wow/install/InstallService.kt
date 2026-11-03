@@ -10,9 +10,11 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.net.wifi.WifiManager
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import app.gamenative.PluviaApp
 import app.gamenative.R
 import app.gamenative.wow.product.GameInstall
 import app.gamenative.wow.product.InstallRegistry
@@ -35,7 +37,7 @@ sealed interface InstallUiState {
     data class Running(val request: InstallRequest, val progress: InstallProgress) : InstallUiState
     data class Paused(val request: InstallRequest, val progress: InstallProgress?, val reason: String? = null) : InstallUiState
     data class Failed(val request: InstallRequest, val message: String) : InstallUiState
-    data class Done(val install: GameInstall) : InstallUiState
+    data class Done(val install: GameInstall, val full: Boolean = false) : InstallUiState
 }
 
 /** Start, pause and resume game installs. The work runs in [InstallService] so it survives leaving the app. */
@@ -53,6 +55,7 @@ object InstallController {
             .putExtra(InstallService.EXTRA_ROOT, req.root.absolutePath)
             .putExtra(InstallService.EXTRA_PRODUCT, req.product.code)
             .putExtra(InstallService.EXTRA_LOCALE, req.locale)
+            .putExtra(InstallService.EXTRA_FULL, req.full)
         ContextCompat.startForegroundService(context, intent)
     }
 
@@ -87,6 +90,7 @@ class InstallService : Service() {
     private var request: InstallRequest? = null
     private var lastProgress: InstallProgress? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private var wifiLock: WifiManager.WifiLock? = null
     private var lastNotified = 0L
 
     /**
@@ -113,7 +117,8 @@ class InstallService : Service() {
                     finish()
                     return START_NOT_STICKY
                 }
-                startInstall(InstallRequest(File(root), product, intent.getStringExtra(EXTRA_LOCALE) ?: "enUS"))
+                val locale = intent.getStringExtra(EXTRA_LOCALE) ?: "enUS"
+                startInstall(InstallRequest(File(root), product, locale, full = intent.getBooleanExtra(EXTRA_FULL, false)))
             }
             ACTION_PAUSE -> pause(null)
             ACTION_CANCEL -> {
@@ -136,12 +141,22 @@ class InstallService : Service() {
                 .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "foreverywhere:install")
                 .apply { acquire(WAKE_LOCK_MS) }
         }
+        // Some devices slow Wi-Fi down once the screen is off; downloads can run for hours that way.
+        if (wifiLock?.isHeld != true) {
+            @Suppress("DEPRECATION")
+            wifiLock = getSystemService(WifiManager::class.java)
+                ?.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "foreverywhere:install")
+                ?.apply {
+                    setReferenceCounted(false)
+                    acquire()
+                }
+        }
         job = scope.launch {
             // Let a paused attempt finish its last file before this one touches the same temp files.
             previous?.join()
             try {
-                GameInstaller().run(req) { progress ->
-                    if (current.stopped) return@run
+                val report: (InstallProgress) -> Unit = report@{ progress ->
+                    if (current.stopped) return@report
                     lastProgress = progress
                     InstallController.update(InstallUiState.Running(req, progress))
                     val now = System.currentTimeMillis()
@@ -149,6 +164,11 @@ class InstallService : Service() {
                         lastNotified = now
                         getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(req, progress))
                     }
+                }
+                if (req.full) {
+                    FullDownloader(gameRunning = { PluviaApp.xEnvironment != null }).run(req, report)
+                } else {
+                    GameInstaller().run(req, onProgress = report)
                 }
                 if (current.stopped) return@launch
                 val product = req.product
@@ -158,7 +178,7 @@ class InstallService : Service() {
                     add(install)
                     setActive(install.root, app.gamenative.wow.product.GameVersion.of(product))
                 }
-                InstallController.update(InstallUiState.Done(install))
+                InstallController.update(InstallUiState.Done(install, req.full))
                 finish()
             } catch (e: CancellationException) {
                 throw e
@@ -179,14 +199,19 @@ class InstallService : Service() {
         finish()
     }
 
-    /** Android 15+ stops data-sync services after about six hours a day; keep the progress and pause. */
+    /**
+     * Android 15+ stops data-sync services after about six hours a day in the background; keep the progress
+     * and pause. The limit doesn't apply while the app is on screen, which is what Overnight mode is for.
+     */
     override fun onTimeout(startId: Int, fgsType: Int) {
-        pause("Android paused the download after several hours. Resume it to continue.")
+        pause("Android paused the download after several hours in the background. Resume it, and use Overnight mode to keep the app open for long downloads.")
     }
 
     private fun finish() {
         wakeLock?.takeIf { it.isHeld }?.release()
         wakeLock = null
+        wifiLock?.takeIf { it.isHeld }?.release()
+        wifiLock = null
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -194,6 +219,7 @@ class InstallService : Service() {
     override fun onDestroy() {
         scope.cancel()
         wakeLock?.takeIf { it.isHeld }?.release()
+        wifiLock?.takeIf { it.isHeld }?.release()
         super.onDestroy()
     }
 
@@ -231,7 +257,7 @@ class InstallService : Service() {
         val done = progress?.doneBytes ?: 0
         return NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.fw_ic_download)
-            .setContentTitle("Installing ${req.product.displayName}")
+            .setContentTitle(if (req.full) "Downloading all ${req.product.displayName} game data" else "Installing ${req.product.displayName}")
             .setContentText(progress?.takeIf { total > 0 }?.sizeText ?: "Preparing download…")
             .setProgress(1000, if (total > 0) (done * 1000 / total).toInt() else 0, total <= 0)
             .setOngoing(true)
@@ -249,8 +275,10 @@ class InstallService : Service() {
         const val EXTRA_ROOT = "root"
         const val EXTRA_PRODUCT = "product"
         const val EXTRA_LOCALE = "locale"
+        const val EXTRA_FULL = "full"
         private const val CHANNEL = "installs"
         private const val NOTIFICATION_ID = 4101
-        private const val WAKE_LOCK_MS = 8 * 60 * 60 * 1000L
+        /** A safety net only: the lock is released when the download ends. A full download can take most of a day. */
+        private const val WAKE_LOCK_MS = 24 * 60 * 60 * 1000L
     }
 }

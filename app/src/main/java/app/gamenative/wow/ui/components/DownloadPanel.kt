@@ -8,6 +8,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -43,4 +48,15 @@ fun FwDownloadPanel(title: String, progress: InstallProgress?, bytesPerSecond: L
         }
         progress?.stepText?.let { Text(it, style = Fw.Data, maxLines = 1, overflow = TextOverflow.Ellipsis) }
     }
+}
+
+/** Download speed in bytes per second for a stream of [progress] updates, averaged over [windowMs]. */
+@Composable
+fun rememberDownloadSpeed(progress: InstallProgress?, windowMs: Long = 3_000): Long? {
+    val speed = remember { DownloadSpeed(windowMs) }
+    var bytesPerSecond by remember { mutableStateOf<Long?>(null) }
+    LaunchedEffect(progress) {
+        progress?.let { p -> speed.add(p.fetchedBytes, System.nanoTime() / 1_000_000)?.let { bytesPerSecond = it } }
+    }
+    return bytesPerSecond
 }

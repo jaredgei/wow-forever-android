@@ -36,6 +36,7 @@ object Routes {
     const val FIRST_RUN = "firstrun"
     const val INSTALL = "install"
     const val CONTROLLER_TEST = "controllertest"
+    const val OVERNIGHT = "overnight"
 }
 
 /** The app's own screens. Hosted by upstream's NavHost in place of `WoWForeverScreen`. */
@@ -91,7 +92,15 @@ fun ForeverywhereApp(onLaunch: (appId: String) -> Unit) {
                         onOpenSettings = { nav.navigate(Routes.SETTINGS) },
                     )
                 }
-                composable(Routes.GAME) { GameFilesScreen(launcher, onBack = { nav.popBackStack() }, onInstall = { nav.navigate(Routes.INSTALL) }) }
+                composable(Routes.GAME) {
+                    GameFilesScreen(
+                        launcher,
+                        onBack = { nav.popBackStack() },
+                        onInstall = { nav.navigate(Routes.INSTALL) },
+                        onOpenOvernight = { nav.navigate(Routes.OVERNIGHT) },
+                    )
+                }
+                composable(Routes.OVERNIGHT) { OvernightScreen(onBack = { nav.popBackStack() }) }
                 composable(Routes.ACCOUNT) {
                     AccountScreen(launcher, onBack = { nav.popBackStack() }, onEditLogin = { showLoginDialog = true })
                 }

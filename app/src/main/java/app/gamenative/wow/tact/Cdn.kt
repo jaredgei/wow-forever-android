@@ -42,6 +42,48 @@ class Cdn(
             true
         } ?: false
 
+    /**
+     * The body from the first host that answers, counted as it's read; the caller closes it. Unlike [fetch],
+     * a failure partway through is the caller's to handle, since it may already have used the start.
+     * Returns null if the CDN doesn't have the file.
+     */
+    fun open(kind: String, key: String, range: LongRange? = null): CdnStream? {
+        var failure: IOException? = null
+        var missing = false
+        for (host in hosts) {
+            val request = Request.Builder()
+                .url(url(host, kind, key))
+                .apply { if (range != null) header("Range", "bytes=${range.first}-${range.last}") }
+                .build()
+            try {
+                val response = http.newCall(request).execute()
+                when {
+                    response.isSuccessful -> return CdnStream(response)
+                    response.code == 403 || response.code == 404 -> missing = true
+                    else -> failure = IOException("HTTP ${response.code} from $host")
+                }
+                response.close()
+            } catch (e: IOException) {
+                failure = e
+            }
+        }
+        if (missing) return null
+        throw failure ?: IOException("No CDN hosts configured")
+    }
+
+    inner class CdnStream internal constructor(private val response: Response) : java.io.FilterInputStream(response.body!!.byteStream()) {
+        /** The body's length in bytes, or -1 if the server didn't say. */
+        val length = response.body!!.contentLength()
+
+        override fun read(): Int = super.read().also { if (it >= 0) onBytes?.invoke(1) }
+
+        override fun read(b: ByteArray, off: Int, len: Int): Int = super.read(b, off, len).also { if (it > 0) onBytes?.invoke(it.toLong()) }
+
+        override fun skip(n: Long): Long = super.skip(n).also { if (it > 0) onBytes?.invoke(it) }
+
+        override fun close() = response.close()
+    }
+
     private fun copyCounting(input: InputStream, out: OutputStream) {
         val buffer = ByteArray(256 * 1024)
         while (true) {

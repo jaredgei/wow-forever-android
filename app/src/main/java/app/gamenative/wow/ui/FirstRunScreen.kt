@@ -235,7 +235,8 @@ fun InstallStep(launcher: LauncherController, onDone: () -> Unit, onBack: () -> 
             }
     }
     LaunchedEffect(state) {
-        (state as? InstallUiState.Done)?.let {
+        // A finished full download belongs to Game files, not to this install.
+        (state as? InstallUiState.Done)?.takeIf { !it.full }?.let {
             launcher.selectInstall(it.install)
             InstallController.reset()
             onDone()

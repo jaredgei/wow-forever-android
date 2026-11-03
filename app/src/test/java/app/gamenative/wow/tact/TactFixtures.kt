@@ -92,6 +92,35 @@ object TactFixtures {
         return block.array() + ByteArray(64)
     }
 
+    data class DownloadSpec(val ekey: String, val size: Long, val tags: Set<String>)
+
+    /** A decoded download manifest in [version] 1, 2 or 3, listing [entries] with their tag memberships. */
+    fun downloadManifest(entries: List<DownloadSpec>, version: Int = 1): ByteArray {
+        val tagNames = entries.flatMap { it.tags }.distinct()
+        val maskSize = (entries.size + 7) / 8
+        val out = ByteArrayOutputStream()
+        out.write("DL".toByteArray())
+        out.write(byteArrayOf(version.toByte(), 16, 0))
+        out.write(ByteBuffer.allocate(6).putInt(entries.size).putShort(tagNames.size.toShort()).array())
+        if (version >= 2) out.write(1)
+        if (version >= 3) out.write(ByteArray(4))
+        for (e in entries) {
+            out.write(unhex(e.ekey))
+            out.write(ByteBuffer.allocate(8).putLong(e.size).array(), 3, 5)
+            out.write(0)
+            if (version >= 2) out.write(0)
+        }
+        for (tag in tagNames) {
+            out.write(tag.toByteArray())
+            out.write(0)
+            out.write(byteArrayOf(0, tagType(tag).toByte()))
+            val mask = ByteArray(maskSize)
+            entries.forEachIndexed { i, e -> if (tag in e.tags) mask[i / 8] = (mask[i / 8].toInt() or (0x80 ushr (i % 8))).toByte() }
+            out.write(mask)
+        }
+        return out.toByteArray()
+    }
+
     /** Tag types as Blizzard groups them: 1 platform, 2 architecture, 3 locale, 4 region, 5 other. */
     fun tagType(tag: String) = when {
         tag in setOf("Windows", "OSX", "Android") -> 1

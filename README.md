@@ -78,7 +78,7 @@ If you try a device that isn't listed, please [open an issue](https://github.com
 </p>
 
 > [!IMPORTANT]
-> The app downloads the game program, about half a gigabyte. The first time you start the game, it downloads the rest of its world data (about 67 GB) on its own. Your first sessions may load slowly. Leaving the game at the login screen on Wi-Fi for a while speeds this up.
+> The app downloads the game program, about half a gigabyte. The first time you start the game, it downloads the rest of its world data (about 67 GB) on its own. Your first sessions may load slowly. Leaving the game at the login screen on Wi-Fi for a while speeds this up. On a slow connection, use **Game files → Download all game data** instead (see below).
 
 ### Already have the game on a PC?
 
@@ -142,6 +142,7 @@ Because the game needs the password in plain text for those few seconds, any app
 </p>
 
 - **Game files** shows where the game is installed and its version. **Install or repair** checks every file and downloads only what's missing or damaged. Once WoW Forever launches, this screen also offers to switch a beta install to the launch version, reusing the game data you already have.
+- **Download all game data** fetches everything the game would otherwise download while you play, about 50 GB, so it never waits on the network for world data. It suits slow connections and can run overnight: start it, open **Overnight mode**, and leave the device on its charger. Overnight mode keeps the app on screen at the lowest brightness, on a black background with the progress moving every minute, so nothing burns in. It also stops Android 15 and later from pausing the download after six hours in the background. You can keep playing while it runs; the new data takes over the next time the game is closed.
 - **Settings** shows the app version and checks for app updates. It's also where you change your **region** and the game's **resolution**, which is set for your device by default; a higher resolution looks sharper but is harder on the device. Both apply the next time you start the game.
 
 ### Frame generation
@@ -164,7 +165,7 @@ These versions are experimental and get little support. They may run poorly or n
 | :--- | :--- |
 | *CAS system was unable to initialize* | The game folder is missing `.build.info`. Run **Game files → Install or repair**, or copy the file again from your PC install. |
 | *No realms available* | The game is out of date. Open the app with Wi-Fi on and accept the update. |
-| The game is slow the first time | It's downloading its world data in the background. Give it time on Wi-Fi. |
+| The game is slow the first time, or text and characters are missing | It's downloading its world data in the background. Give it time on Wi-Fi, or use **Game files → Download all game data** on a slow connection. |
 | The keyboard doesn't appear in the game | Force-stop Gboard under **Settings → Apps → Gboard** and open the keyboard again. |
 | The app returns to the home screen after "Starting World of Warcraft" | Check the files in the game's `Errors` folder (`_forever_/Errors` or `_classic_beta_/Errors`). |
 | "This device can't run the game" | The device has no Adreno GPU. The game needs a Snapdragon chip. |

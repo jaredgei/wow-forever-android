@@ -32,13 +32,23 @@ data class InstallRequest(
     val locale: String = "enUS",
     val arch: String = "arm64",
     val region: String = "us",
+    /** Download every file the game would otherwise stream, into its own storage, instead of installing. */
+    val full: Boolean = false,
 )
 
 /**
  * [doneBytes] counts every file handled, including ones already on disk; [fetchedBytes] only what came
  * from the network during this run, which is what the download speed is measured on.
  */
-data class InstallProgress(val phase: Phase, val doneBytes: Long, val totalBytes: Long, val currentFile: String?, val fetchedBytes: Long = 0) {
+data class InstallProgress(
+    val phase: Phase,
+    val doneBytes: Long,
+    val totalBytes: Long,
+    val currentFile: String?,
+    val fetchedBytes: Long = 0,
+    /** Replaces the file name as the step line, for work that isn't one file at a time. */
+    val detail: String? = null,
+) {
     enum class Phase { RESOLVING, DOWNLOADING, FINALIZING, DONE }
 
     val fraction get() = if (totalBytes > 0) (doneBytes.toFloat() / totalBytes).coerceIn(0f, 1f) else null
@@ -47,7 +57,7 @@ data class InstallProgress(val phase: Phase, val doneBytes: Long, val totalBytes
     val sizeText get() = "${bytesText(doneBytes)} of ${bytesText(totalBytes)}"
 
     /** What's being downloaded, in words: the stage for configs and indexes, the file name otherwise. */
-    val stepText: String? get() = currentFile?.let {
+    val stepText: String? get() = detail ?: currentFile?.let {
         when {
             it.startsWith("Data/indices/") -> "Archive indexes"
             it.startsWith("Data/config/") -> "Build configuration"
