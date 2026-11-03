@@ -26,7 +26,7 @@ Install the app, let it download the game from Blizzard's servers, pick your add
 - **Installs the game for you.** Foreverywhere downloads the WoW Forever client straight from Blizzard's CDN to internal storage or an SD card. Downloads continue in the background, can be paused and resumed, and every file is verified.
 - **Finds the copy you already have.** If WoW Forever is already on the device (copied from a PC, or set up for another launcher), the app finds it and uses it without downloading anything.
 - **Keeps it up to date.** When Blizzard patches the game, the app offers the update before you play.
-- **Built-in addon manager.** Search, install, update and remove addons from CurseForge, Wago, WoWInterface and GitHub, browse by category, and see at a glance which addons are made for Forever.
+- **Built-in addon manager.** Search, install, update and remove addons from CurseForge, Wago, WoWInterface and GitHub, browse by category, and see at a glance which addons are made for Forever. It also works on its own for a WoW install you run some other way.
 - **Signs you in.** Save your Battle.net login once and the game logs in by itself.
 - **Made for a controller.** Every screen works with the D-pad and face buttons, and the layout adapts to small and portrait screens.
 
@@ -113,6 +113,14 @@ The addon browser brings together CurseForge, Wago, WoWInterface and a curated c
 | **Wago Addons** | Available in builds made with a Wago Addons API key. |
 
 The GitHub catalog lives in [`catalog/sources.json`](catalog/sources.json) and is refreshed every night. To suggest an addon, open a pull request that adds its repository. It needs GitHub releases with addon `.zip` files.
+
+### Addon manager mode
+
+If you play WoW another way, for example through DroidDeck, Winlator or a copy synced from a PC, the app can manage that install's addons and do nothing else. Choose **Already play WoW another way?** on the welcome screen, or **Settings → Use addon manager mode**, then pick the game's `Interface/AddOns` folder, its version folder (such as `_retail_` or `_classic_era_`) or the whole game folder. The game version is detected from the folder, and you can change it.
+
+The app then always opens to your addons, with a **Settings** button in place of Back. The launcher, game files and account screens are turned off. To go back to the full app, use **Settings → Turn off addon manager mode**.
+
+The app needs **All files access** to change addons in another app's folder. Folders inside another app's private storage (`Android/data`) can't be opened, because Android doesn't allow it.
 
 ## Playing
 
