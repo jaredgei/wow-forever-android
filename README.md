@@ -16,18 +16,20 @@ Install the app, let it download the game from Blizzard's servers, pick your add
 </div>
 
 > [!TIP]
-> ### New in 0.3.0: CurseForge support
-> The addon browser now includes the full **CurseForge** catalog. Search, install and update CurseForge addons right on your handheld, with WoW Forever versions picked automatically. No account or key needed.
+> ### New in 0.7.0: download everything up front, and addon manager mode
+> **Download all game data** fetches the whole game ahead of time, so it never waits on a slow connection, and **Overnight mode** lets it run on the charger without burning in the screen. Already play WoW another way, such as through DroidDeck? **Addon manager mode** turns the app into an addon manager for that install.
 >
-> **[Download the latest release](https://github.com/YoruDev-Ryland/WoWForeverywhere/releases/latest)** · [What's new in 0.3.0](https://github.com/YoruDev-Ryland/WoWForeverywhere/releases/tag/v0.3.0)
+> **[Download the latest release](https://github.com/YoruDev-Ryland/WoWForeverywhere/releases/latest)** · [What's new in 0.7.0](https://github.com/YoruDev-Ryland/WoWForeverywhere/releases/tag/v0.7.0)
 
 ## Features
 
 - **Installs the game for you.** Foreverywhere downloads the WoW Forever client straight from Blizzard's CDN to internal storage or an SD card. Downloads continue in the background, can be paused and resumed, and every file is verified.
 - **Finds the copy you already have.** If WoW Forever is already on the device (copied from a PC, or set up for another launcher), the app finds it and uses it without downloading anything.
 - **Keeps it up to date.** When Blizzard patches the game, the app offers the update before you play.
+- **Downloads it all ahead of time, if you want.** On a slow connection, fetch all of the game's world data in one go, overnight if need be, instead of waiting for it while you play.
 - **Built-in addon manager.** Search, install, update and remove addons from CurseForge, Wago, WoWInterface and GitHub, browse by category, and see at a glance which addons are made for Forever. It also works on its own for a WoW install you run some other way.
 - **Signs you in.** Save your Battle.net login once and the game logs in by itself.
+- **Smoother with frame generation.** Use your own copy of Lossless Scaling to add generated frames.
 - **Made for a controller.** Every screen works with the D-pad and face buttons, and the layout adapts to small and portrait screens.
 
 The game runs as Blizzard's own Windows ARM64 client under Wine, with DXVK and a tuned Turnip Vulkan driver for Adreno GPUs. Nothing is emulated as x86.
@@ -43,7 +45,7 @@ The game runs as Blizzard's own Windows ARM64 client under Wine, with DXVK and a
 | **Android** | Android 10 or newer, 64-bit |
 | **Storage** | About 80 GB free for the game (internal storage or SD card), plus about 4 GB of internal storage for the app |
 | **Account** | A Battle.net account with WoW Forever |
-| **Network** | Wi-Fi recommended for the first start, when the game downloads its world data |
+| **Network** | Wi-Fi recommended for the first start, when the game downloads its world data, or for downloading all game data ahead of time |
 
 ### Devices
 
@@ -71,6 +73,8 @@ If you try a device that isn't listed, please [open an issue](https://github.com
 4. **Install.** Choose internal storage or the SD card, pick your region (Americas, Europe, Korea or Taiwan), and start the download. You can leave the app while it runs; progress shows in your notifications.
 5. **Sign in.** Optionally save your Battle.net email and password so the game logs you in automatically.
 6. Press **Play**.
+
+Only want the addon manager for a game you already play another way? On the welcome screen, choose **Already play WoW another way?** instead of **Get started**. See [Addon manager mode](#addon-manager-mode).
 
 <p align="center">
   <img src=".github/readme/find-game.jpg" alt="Find game step listing an existing WoW Forever install" width="49%">
@@ -151,7 +155,16 @@ Because the game needs the password in plain text for those few seconds, any app
 
 - **Game files** shows where the game is installed and its version. **Install or repair** checks every file and downloads only what's missing or damaged. Once WoW Forever launches, this screen also offers to switch a beta install to the launch version, reusing the game data you already have.
 - **Download all game data** fetches everything the game would otherwise download while you play, about 50 GB, so it never waits on the network for world data. It suits slow connections and can run overnight: start it, open **Overnight mode**, and leave the device on its charger. Overnight mode keeps the app on screen at the lowest brightness, on a black background with the progress moving every minute, so nothing burns in. It also stops Android 15 and later from pausing the download after six hours in the background. You can keep playing while it runs; the new data takes over the next time the game is closed.
-- **Settings** shows the app version and checks for app updates. It's also where you change your **region** and the game's **resolution**, which is set for your device by default; a higher resolution looks sharper but is harder on the device. Both apply the next time you start the game.
+- **Settings** shows the app version and checks for app updates. It also holds:
+  - **Game version** and **Region** (Americas, Europe, Korea or Taiwan).
+  - **Addon sources**, showing which addon sites this build can use.
+  - **Device**, showing the graphics profile picked for your chip.
+  - **Resolution**, which is set for your device by default. A higher resolution looks sharper but is harder on the device.
+  - **Frame generation** (see below).
+  - **Troubleshooting**, with the controller test and debug report (see [Reporting a problem](#reporting-a-problem)).
+  - **Addon manager mode**.
+
+  Changes to the region and resolution apply the next time you start the game.
 
 ### Frame generation
 
@@ -177,11 +190,12 @@ These versions are experimental and get little support. They may run poorly or n
 | The keyboard doesn't appear in the game | Force-stop Gboard under **Settings → Apps → Gboard** and open the keyboard again. |
 | The app returns to the home screen after "Starting World of Warcraft" | Check the files in the game's `Errors` folder (`_forever_/Errors` or `_classic_beta_/Errors`). |
 | "This device can't run the game" | The device has no Adreno GPU. The game needs a Snapdragon chip. |
-| A button does nothing in the game | Open **Settings → Controller test** and press it. The screen shows which device sent the press and whether the game receives it. Add a screenshot of it to your issue. |
+| A button does nothing in the game | Open **Settings → Troubleshooting → Controller test** and press it. The screen shows which device sent the press and whether the game receives it. Add a screenshot of it to your issue. |
+| Addon manager mode can't open my game's folder | The folder is inside another app's private storage (`Android/data`), which Android doesn't let other apps open. If the other app can keep the game in a shared folder, such as on internal storage or an SD card, move it there. |
 
 ### Reporting a problem
 
-Turn on **Settings → Debug logging**, make the problem happen again, then use **Settings → Share debug report** and attach the zip to your [GitHub issue](https://github.com/YoruDev-Ryland/WoWForeverywhere/issues). The report holds your device details, the app's settings and the app's and game's logs. Email addresses and your saved login are removed from it. Turn debug logging off again afterwards.
+Under **Settings → Troubleshooting**, turn on debug logging, make the problem happen again, then use **Share debug report** and attach the zip to your [GitHub issue](https://github.com/YoruDev-Ryland/WoWForeverywhere/issues). The report holds your device details, the app's settings and the app's and game's logs. Email addresses and your saved login are removed from it. Turn debug logging off again afterwards.
 
 ## Building from source
 
