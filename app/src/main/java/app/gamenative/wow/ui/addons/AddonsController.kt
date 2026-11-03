@@ -27,12 +27,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 
-/** UI state for the addon browser, bound to one install's `Interface/AddOns` folder. */
-class AddonsController(gameRoot: File, product: WowProduct, private val scope: CoroutineScope) {
+/** UI state for the addon browser, bound to one `Interface/AddOns` folder whose addons are for [version]. */
+class AddonsController(val addonsDir: File, val version: GameVersion, private val scope: CoroutineScope) {
+    /** The addons of one of the app's own installs. */
+    constructor(gameRoot: File, product: WowProduct, scope: CoroutineScope) :
+        this(File(gameRoot, "${product.flavorDir}/Interface/AddOns"), GameVersion.of(product), scope)
+
     enum class Mode { INSTALLED, BROWSE }
 
-    val addonsDir = File(gameRoot, "${product.flavorDir}/Interface/AddOns")
-    val version = GameVersion.of(product)
     private val target = version.addonTarget()
     private val manager = AddonManager(
         addonsDir = addonsDir,

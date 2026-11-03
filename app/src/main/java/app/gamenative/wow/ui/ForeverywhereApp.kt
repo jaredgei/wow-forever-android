@@ -15,10 +15,15 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import kotlinx.coroutines.launch
 import app.gamenative.PluviaApp
 import app.gamenative.events.AndroidEvent
 import app.gamenative.ui.screen.wow.BattleNetCredentialDialog
+import app.gamenative.wow.addons.AddonMode
+import app.gamenative.wow.product.GameVersion
+import app.gamenative.wow.ui.addons.AddonsController
 import app.gamenative.wow.ui.addons.AddonsRoute
+import app.gamenative.wow.ui.addons.AddonsScreen
 import app.gamenative.wow.ui.addons.addonsControllerFor
 import app.gamenative.wow.ui.components.FwDialog
 import app.gamenative.wow.ui.theme.Fw
@@ -37,6 +42,8 @@ object Routes {
     const val INSTALL = "install"
     const val CONTROLLER_TEST = "controllertest"
     const val OVERNIGHT = "overnight"
+    const val ADDON_MODE = "addonmode"
+    const val ADDON_MODE_SETUP = "addonmodesetup"
 }
 
 /** The app's own screens. Hosted by upstream's NavHost in place of `WoWForeverScreen`. */
@@ -51,10 +58,18 @@ fun ForeverywhereApp(onLaunch: (appId: String) -> Unit) {
     LaunchedEffect(addonsNow) { addonsNow?.refreshInstalled() }
     // The nav graph is built once, so destinations read this state instead of capturing a stale value.
     val addonsState = rememberUpdatedState(addonsNow)
+    // Addon manager mode: the app only manages this folder's addons, for a game run some other way.
+    var addonFolder by remember { mutableStateOf(AddonMode.folder(context)) }
+    val modeAddons = remember(addonFolder) { addonFolder?.let { AddonsController(it.addonsDir, it.version ?: GameVersion.FOREVER, scope) } }
+    val modeAddonsState = rememberUpdatedState(modeAddons)
 
     // Decided once: recomputing it would rebuild the graph and drop first-run mid-way when an install appears.
     val startRoute = remember {
-        if (launcher.registry.active() == null && launcher.filesMissing) Routes.FIRST_RUN else Routes.HOME
+        when {
+            addonFolder != null -> Routes.ADDON_MODE
+            launcher.registry.active() == null && launcher.filesMissing -> Routes.FIRST_RUN
+            else -> Routes.HOME
+        }
     }
     var appUpdateDismissed by remember { mutableStateOf(false) }
     // After a game version switch: that version's Home, or its first run when it has no install yet.
@@ -63,7 +78,11 @@ fun ForeverywhereApp(onLaunch: (appId: String) -> Unit) {
         nav.navigate(route) { popUpTo(nav.graph.id) { inclusive = true } }
     }
 
-    LaunchedEffect(Unit) { launcher.start() }
+    LaunchedEffect(Unit) { if (addonFolder != null) launcher.startAddonMode() else launcher.start() }
+    val onAddonModeStarted: (AddonMode.Folder) -> Unit = { folder ->
+        addonFolder = folder
+        nav.navigate(Routes.ADDON_MODE) { popUpTo(nav.graph.id) { inclusive = true } }
+    }
     LifecycleResumeEffect(launcher.gamePath) {
         launcher.onResume()
         onPauseOrDispose { launcher.onPause() }
@@ -110,7 +129,21 @@ fun ForeverywhereApp(onLaunch: (appId: String) -> Unit) {
                         onBack = { nav.popBackStack() },
                         onVersionChanged = onVersionChanged,
                         onOpenControllerTest = { nav.navigate(Routes.CONTROLLER_TEST) },
+                        addonFolder = addonFolder,
+                        onOpenAddonMode = { nav.navigate(Routes.ADDON_MODE_SETUP) },
+                        onDisableAddonMode = {
+                            AddonMode.disable(context)
+                            addonFolder = null
+                            scope.launch { launcher.start() }
+                            onVersionChanged()
+                        },
                     )
+                }
+                composable(Routes.ADDON_MODE) {
+                    modeAddonsState.value?.let { AddonsScreen(it, onBack = {}, onSettings = { nav.navigate(Routes.SETTINGS) }) }
+                }
+                composable(Routes.ADDON_MODE_SETUP) {
+                    AddonModeScreen(onBack = { nav.popBackStack() }, onStarted = onAddonModeStarted)
                 }
                 composable(Routes.CONTROLLER_TEST) { ControllerTestScreen(onBack = { nav.popBackStack() }) }
                 composable(Routes.ADDONS) { AddonsRoute(launcher, addonsState.value, onBack = { nav.popBackStack() }) }
@@ -129,6 +162,7 @@ fun ForeverywhereApp(onLaunch: (appId: String) -> Unit) {
                         onEditLogin = { showLoginDialog = true },
                         onDone = { nav.navigate(Routes.HOME) { popUpTo(Routes.FIRST_RUN) { inclusive = true } } },
                         onOpenSettings = { nav.navigate(Routes.SETTINGS) },
+                        onOpenAddonMode = { nav.navigate(Routes.ADDON_MODE_SETUP) },
                     )
                 }
             }
@@ -143,7 +177,7 @@ fun ForeverywhereApp(onLaunch: (appId: String) -> Unit) {
                 },
             )
         }
-        if (launcher.needsStoragePermission) {
+        if (launcher.needsStoragePermission && addonFolder == null) {
             FwDialog(
                 title = "Allow file access",
                 message = "Android needs \"All files access\" so the app can install and update the game in this folder. Turn on \"Allow access to manage all files\" on the next screen.",
@@ -167,7 +201,7 @@ fun ForeverywhereApp(onLaunch: (appId: String) -> Unit) {
         }
         // A beta install once WoW Forever is out: asked on every app start until it's switched.
         val updatePromptShowing = launcher.appUpdate != null && !appUpdateDismissed && !launcher.isDownloadingAppUpdate
-        if (launcher.canConvertToLaunch && !launcher.switchPromptDismissed && !launcher.isConverting && !updatePromptShowing) {
+        if (addonFolder == null && launcher.canConvertToLaunch && !launcher.switchPromptDismissed && !launcher.isConverting && !updatePromptShowing) {
             FwDialog(
                 title = "WoW Forever is out",
                 message = "This install is still on the beta. Switch it to WoW Forever to keep playing. Your game data, settings and addons are kept, so only the new game program downloads.",

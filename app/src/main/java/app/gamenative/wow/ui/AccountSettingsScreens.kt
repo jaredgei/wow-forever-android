@@ -23,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import app.gamenative.wow.addons.AddonMode
 import app.gamenative.wow.install.InstallController
 import app.gamenative.wow.install.InstallUiState
 import app.gamenative.wow.product.GameRegion
@@ -110,6 +111,10 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onVersionChanged: () -> Unit = {},
     onOpenControllerTest: () -> Unit = {},
+    /** The folder addon manager mode manages, or null when the app is the full launcher. */
+    addonFolder: AddonMode.Folder? = null,
+    onOpenAddonMode: () -> Unit = {},
+    onDisableAddonMode: () -> Unit = {},
 ) {
     FwPage("Settings", onBack) {
         FwSection("App") {
@@ -129,8 +134,11 @@ fun SettingsScreen(
                 }
             }
         }
-        GameVersionSection(launcher, onVersionChanged)
-        RegionSection(launcher)
+        if (addonFolder != null) AddonModeSection(addonFolder, onOpenAddonMode, onDisableAddonMode)
+        if (addonFolder == null) {
+            GameVersionSection(launcher, onVersionChanged)
+            RegionSection(launcher)
+        }
         FwSection("Support Foreverywhere") {
             val context = LocalContext.current
             Text("Foreverywhere is free and open source. If it saves you some time, you can support its development on Ko-fi.", style = Fw.Text)
@@ -143,12 +151,15 @@ fun SettingsScreen(
             ProviderLine("GitHub (addon catalog and links)", true)
             Text("Wago needs an API key built into the app. Builds without one still use the other sources.", style = Fw.Secondary)
         }
-        FwSection("Device") {
-            Text("${launcher.gpu.edition} profile", style = Fw.Data)
+        if (addonFolder == null) {
+            FwSection("Device") {
+                Text("${launcher.gpu.edition} profile", style = Fw.Data)
+            }
+            ResolutionSection(launcher)
+            FrameGenerationSection()
+            TroubleshootingSection(launcher, onOpenControllerTest)
+            AddonModeSection(null, onOpenAddonMode, onDisableAddonMode)
         }
-        ResolutionSection(launcher)
-        FrameGenerationSection()
-        TroubleshootingSection(launcher, onOpenControllerTest)
         FwSection("About") {
             Text(
                 "Unofficial community project, not affiliated with Blizzard Entertainment. The game is downloaded from Blizzard's own servers and needs your own Battle.net account. Based on jaredgei/wow-forever-android (GPL-3.0).",
@@ -156,6 +167,28 @@ fun SettingsScreen(
             )
             val context = LocalContext.current
             FwButton("Source code on GitHub", { Links.open(context, Links.REPO) }, kind = FwButtonKind.Ghost, icon = Icons.AutoMirrored.Filled.OpenInNew)
+        }
+    }
+}
+
+/** Settings, Addon manager mode: offered when the app is the full launcher, and the way back out of it. */
+@Composable
+private fun AddonModeSection(folder: AddonMode.Folder?, onOpen: () -> Unit, onDisable: () -> Unit) {
+    FwSection("Addon manager mode") {
+        if (folder == null) {
+            Text(
+                "Play WoW some other way, such as through DroidDeck? Addon manager mode turns this app into an addon manager for that install, and turns everything else off.",
+                style = Fw.Secondary,
+            )
+            FwButton("Use addon manager mode", onOpen, kind = FwButtonKind.Ghost)
+        } else {
+            Text("The app manages the ${folder.version?.displayName ?: ""} addons in this folder and nothing else:", style = Fw.Text)
+            Text(folder.addonsDir.path, style = Fw.Data)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                FwButton("Change folder", onOpen, kind = FwButtonKind.Ghost)
+                FwButton("Turn off addon manager mode", onDisable)
+            }
+            Text("Turning it off brings back the launcher: installing, updating and playing WoW Forever on this device.", style = Fw.Secondary)
         }
     }
 }
