@@ -426,6 +426,13 @@ class LauncherController(
         BattleNetSignIn.removeLoginFile(File(gamePath))
     }
 
+    /** Start-up in addon manager mode: no game checks and never an auto-launch, only the app update check. */
+    fun startAddonMode() {
+        WoWLauncherState.shouldAutoLaunch = false
+        PluviaApp.events.emit(AndroidEvent.ClearBootingSplash)
+        checkAppUpdate()
+    }
+
     /** Upstream's start-up sequence: auto-launch only when files, login, game and app are all current. */
     suspend fun start() = coroutineScope {
         val ready = checkFiles()

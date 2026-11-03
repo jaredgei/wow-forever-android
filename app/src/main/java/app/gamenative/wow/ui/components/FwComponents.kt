@@ -134,6 +134,20 @@ fun FwButton(
     }
 }
 
+/** A quiet underlined text link for a side path, focusable like the buttons so a controller reaches it. */
+@Composable
+fun FwLink(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val interaction = remember { MutableInteractionSource() }
+    Text(
+        text,
+        style = Fw.Secondary.copy(color = Fw.Brass, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),
+        modifier = modifier
+            .fwFocus(interaction, Fw.Shape, lift = false)
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 6.dp),
+    )
+}
+
 /** A pill toggle: the current choice is filled with parchment. */
 @Composable
 fun FwChip(text: String, on: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
