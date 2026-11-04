@@ -18,15 +18,21 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -87,7 +93,11 @@ private const val CONTAINER_ID = "wow_forever"
 private const val READY_STATUS = "Ready to launch"
 
 @Composable
-fun WoWForeverScreen(
+fun WoWForeverScreen(onLaunch: (appId: String) -> Unit) = GoldFocusTheme { WoWForeverScreenContent(onLaunch) }
+
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun WoWForeverScreenContent(
     onLaunch: (appId: String) -> Unit,
 ) {
     val context = LocalContext.current
@@ -97,10 +107,13 @@ fun WoWForeverScreen(
     var gamePath by remember { mutableStateOf(GamePath.load(context)) }
     var files by remember { mutableStateOf(GamePath.Status()) }
     var isLaunching by remember { mutableStateOf(false) }
+    var showAddons by remember { mutableStateOf(false) }
     var launchJob by remember { mutableStateOf<Job?>(null) }
     var hasSavedLogin by remember { mutableStateOf(BattleNetSignIn.load(context) != null) }
     var region by remember(gamePath, files) { mutableStateOf(GameRegion.current(context, gamePath)) }
     var resolution by remember { mutableStateOf(RenderResolution.current(context, gpu.screenSize)) }
+    var uiScale by remember { mutableStateOf(UiScale.current(context)) }
+    var textScale by remember { mutableStateOf(TextScale.current(context)) }
     var showLoginDialog by remember { mutableStateOf(false) }
     var statusText by remember { mutableStateOf(READY_STATUS) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -478,6 +491,16 @@ fun WoWForeverScreen(
                             resolution = it
                         }
                     }
+                    Row {
+                        OptionMenu("UI scale: ${uiScale.label}", Icons.Default.ZoomIn, UiScale.entries, uiScale, { it.label }, !isLaunching) {
+                            UiScale.save(context, it)
+                            uiScale = it
+                        }
+                        OptionMenu("Text scale: ${textScale.label}", Icons.Default.TextFields, TextScale.entries, textScale, { it.label }, !isLaunching) {
+                            TextScale.save(context, it)
+                            textScale = it
+                        }
+                    }
 
                     errorMessage?.let {
                         Spacer(modifier = Modifier.height(10.dp))
@@ -609,7 +632,7 @@ fun WoWForeverScreen(
                             Spacer(modifier = Modifier.height(10.dp))
                             OutlinedButton(
                                 onClick = { folderPicker.launch(null) },
-                                modifier = Modifier.fillMaxWidth(0.85f).height(48.dp),
+                                modifier = Modifier.focusGlow(14.dp).fillMaxWidth(0.85f).height(48.dp),
                                 shape = RoundedCornerShape(14.dp),
                             ) {
                                 Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(20.dp), tint = WowGold)
@@ -628,7 +651,7 @@ fun WoWForeverScreen(
                             OutlinedButton(
                                 onClick = ::launchGame,
                                 enabled = canPlay,
-                                modifier = Modifier.fillMaxWidth(0.85f).height(48.dp),
+                                modifier = Modifier.focusGlow(14.dp).fillMaxWidth(0.85f).height(48.dp),
                                 shape = RoundedCornerShape(14.dp)
                             ) {
                                 Text(text = "LAUNCH ANYWAY (OUTDATED)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = WowError)
@@ -655,6 +678,7 @@ fun WoWForeverScreen(
                         }
                         if (!files.needsInstall) {
                             LinkButton("Change Location", Icons.Default.FolderOpen) { folderPicker.launch(null) }
+                            LinkButton("Addons", Icons.Default.Extension, enabled = canPlay && files.hasStorageAccess) { showAddons = true }
                         }
                         LinkButton(
                             text = if (hasSavedLogin) "Update Login" else "Configure Login",
@@ -675,6 +699,14 @@ fun WoWForeverScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
         }
+    }
+
+    if (showAddons) {
+        AddonsDialog(
+            gameRoot = File(gamePath),
+            onDismiss = { showAddons = false },
+            openedWithKeyboard = LocalInputModeManager.current.inputMode == InputMode.Keyboard,
+        )
     }
 
     if (showLoginDialog) {
@@ -924,6 +956,55 @@ enum class RenderResolution(val size: String, val label: String) {
     }
 }
 
+/**
+ * WoW's UI scale (Config.wtf `useUiScale` + `uiScale`). [GAME] leaves whatever the player set inside WoW alone; any other
+ * choice is written on every launch, like the resolution, so what the launcher shows is what the game gets.
+ */
+enum class UiScale(val label: String, val value: Float?) {
+    GAME("In-game setting", null),
+    P80("80%", 0.8f), P90("90%", 0.9f), P100("100%", 1.0f), P110("110%", 1.1f), P120("120%", 1.2f), P130("130%", 1.3f);
+
+    companion object {
+        private const val KEY = "ui_scale"
+
+        fun current(context: Context): UiScale =
+            prefs(context).getString(KEY, null)?.let { saved -> entries.firstOrNull { it.name == saved } } ?: GAME
+
+        fun save(context: Context, scale: UiScale) {
+            prefs(context).edit().putString(KEY, scale.name).apply()
+        }
+    }
+}
+
+/**
+ * WoW's Text Scale (Options > Accessibility > Interface), stored in Config.wtf as `userFontScale` plus
+ * `userFontScaleGlue` for the login and character screens. The numbers are the font size over a 14-point base, as the
+ * game writes them; each was read back from Config.wtf after choosing that option in WoW Forever 1.60.1.
+ */
+enum class TextScale(val label: String, val value: Float?) {
+    GAME("In-game setting", null),
+    SMALL("Small", 0.8571f), MEDIUM("Medium", 1f), LARGE("Large", 1.1429f),
+    EXTRA_LARGE("Extra Large", 1.4286f), HUGE("Huge", 1.7143f), GIGANTIC("Gigantic", 2f);
+
+    companion object {
+        private const val KEY = "text_scale"
+
+        fun current(context: Context): TextScale =
+            prefs(context).getString(KEY, null)?.let { saved -> entries.firstOrNull { it.name == saved } } ?: GAME
+
+        fun save(context: Context, scale: TextScale) {
+            prefs(context).edit().putString(KEY, scale.name).apply()
+        }
+    }
+}
+
+/** The in-game display settings the launcher can set ahead of launch. A null field means "leave the game's own value". */
+data class DisplaySettings(val uiScale: Float? = null, val textScale: Float? = null) {
+    companion object {
+        fun load(context: Context) = DisplaySettings(UiScale.current(context).value, TextScale.current(context).value)
+    }
+}
+
 object GamePath {
     private const val KEY_GAME_PATH = "game_path"
 
@@ -1045,7 +1126,7 @@ private fun PrimaryButton(text: String, icon: ImageVector, enabled: Boolean, onC
     Button(
         onClick = onClick,
         enabled = enabled,
-        modifier = Modifier.fillMaxWidth(0.85f).height(56.dp),
+        modifier = Modifier.focusGlow(14.dp).fillMaxWidth(0.85f).height(56.dp),
         colors = ButtonDefaults.buttonColors(containerColor = WowBronze, contentColor = Color.White),
         shape = RoundedCornerShape(14.dp)
     ) {
@@ -1057,7 +1138,7 @@ private fun PrimaryButton(text: String, icon: ImageVector, enabled: Boolean, onC
 
 @Composable
 private fun LinkButton(text: String, icon: ImageVector, enabled: Boolean = true, onClick: () -> Unit) {
-    TextButton(onClick = onClick, enabled = enabled) {
+    TextButton(modifier = Modifier.focusGlow(20.dp), onClick = onClick, enabled = enabled) {
         Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp), tint = WowMuted)
         Spacer(modifier = Modifier.width(6.dp))
         Text(text, fontSize = 12.sp, color = WowMuted)
@@ -1080,6 +1161,7 @@ private fun <T> OptionMenu(
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             options.forEach { option ->
                 DropdownMenuItem(
+                    modifier = Modifier.focusGlow(8.dp),
                     text = { Text(optionLabel(option)) },
                     trailingIcon = { if (option == selected) Icon(Icons.Default.Check, contentDescription = null, tint = WowGold) },
                     onClick = {
@@ -1163,7 +1245,7 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, scr
 
     check(File(gameRoot, BUILD_INFO).exists()) { "Missing $BUILD_INFO in $gameRoot. Copy it from your WoW install." }
     try {
-        ensureGameConfig(gameRoot, screenSize, GameRegion.saved(context))
+        ensureGameConfig(gameRoot, screenSize, GameRegion.saved(context), DisplaySettings.load(context))
     } catch (e: Exception) {
         if (e.isPermissionDenied()) throw StorageAccessDeniedException(e)
         throw e
@@ -1260,7 +1342,7 @@ private val CONFIG_DEFAULTS = linkedMapOf(
     "accessibilityScreenNarrationEnabled" to "\"0\"",
 )
 
-internal fun ensureGameConfig(root: File, screenSize: String, region: GameRegion?) {
+internal fun ensureGameConfig(root: File, screenSize: String, region: GameRegion?, display: DisplaySettings = DisplaySettings()) {
     val flavorDir = File(root, FLAVOR_DIR)
     flavorDir.mkdirs()
     val flavorInfo = File(flavorDir, ".flavor.info")
@@ -1288,7 +1370,7 @@ internal fun ensureGameConfig(root: File, screenSize: String, region: GameRegion
     }
 
     val forced = mapOf("gxApi" to CONFIG_DEFAULTS.getValue("gxApi"), "portal" to "\"${region?.name ?: portalOf(root)}\"") +
-        RESOLUTION_KEYS.associateWith { "\"$screenSize\"" }
+        RESOLUTION_KEYS.associateWith { "\"$screenSize\"" } + displayKeys(display)
     val forcedLines = forced.map { (key, value) -> "SET $key $value" }
     val original = configWtf.readLines()
     if (!original.containsAll(forcedLines)) {
@@ -1298,6 +1380,23 @@ internal fun ensureGameConfig(root: File, screenSize: String, region: GameRegion
 }
 
 private val RESOLUTION_KEYS = listOf("gxFullscreenResolution", "gxWindowedResolution")
+
+/**
+ * The Config.wtf lines for the display settings the player chose in the launcher. WoW only honors `uiScale` while
+ * `useUiScale` is on; text size has one key for the game and one for the login and character screens.
+ */
+internal fun displayKeys(display: DisplaySettings): Map<String, String> = buildMap {
+    display.uiScale?.let {
+        put("useUiScale", "\"1\"")
+        put("uiScale", "\"${formatScale(it)}\"")
+    }
+    display.textScale?.let {
+        put("userFontScale", "\"${formatScale(it)}\"")
+        put("userFontScaleGlue", "\"${formatScale(it)}\"")
+    }
+}
+
+private fun formatScale(value: Float) = java.math.BigDecimal(value.toString()).stripTrailingZeros().toPlainString()
 
 private const val CONFIG_WTF = "$FLAVOR_DIR/WTF/Config.wtf"
 
