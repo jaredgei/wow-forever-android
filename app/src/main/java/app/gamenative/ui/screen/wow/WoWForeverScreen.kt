@@ -1118,6 +1118,7 @@ private fun ensureGameConfig(root: File, product: WowProduct, screenSize: String
         installLocale(root, product),
         installPortal(root, product),
         forcePortal = GameRegions.chosen != null,
+        gameAccount = app.gamenative.wow.product.GameAccounts.chosen?.let(app.gamenative.wow.product.GameAccounts::name),
     ) ?: return
     configWtf.parentFile?.mkdirs()
     configWtf.writeText(updated.joinToString("\n") + "\n")
@@ -1129,7 +1130,8 @@ private fun ensureGameConfig(root: File, product: WowProduct, screenSize: String
  * gxApi is always forced: DXVK only works with D3D11, and a config copied from a Mac would otherwise
  * select Metal. Resolutions always match the container, which the launcher sizes from Settings, Resolution:
  * WoW's "auto" picks a 720p size because it sees a low-end Intel GPU via Wine, and saves that size on exit
- * as if the player chose it (found by upstream).
+ * as if the player chose it (found by upstream). A [gameAccount] picked in Account is marked as the one to
+ * log into, for a Battle.net login with several WoW accounts.
  */
 internal fun buildConfigWtf(
     existing: List<String>?,
@@ -1138,11 +1140,14 @@ internal fun buildConfigWtf(
     locale: String = "enUS",
     portal: String = product.portal,
     forcePortal: Boolean = false,
+    gameAccount: String? = null,
 ): List<String>? {
     if (existing == null) {
         val defaults = configDefaults(product, locale, portal) + RESOLUTION_KEYS.associateWith { "\"$screenSize\"" }
-        return defaults.entries.map { "SET ${it.key} ${it.value}" }
+        return defaults.entries.map { "SET ${it.key} ${it.value}" } + listOfNotNull(gameAccount?.let { accountListLine(null, it) })
     }
+    val accountLine = gameAccount?.let { account -> accountListLine(existing.lastOrNull { it.startsWith(ACCOUNT_LIST, ignoreCase = true) }, account) }
+    val staleAccount = accountLine != null && existing.none { it == accountLine }
     val staleResolutionKeys = RESOLUTION_KEYS.filter { key -> existing.none { it == "SET $key \"$screenSize\"" } }
     // A config carried over from another product (e.g. beta to launch) gets this product's portal and agent.
     // Once the player has picked a region ([forcePortal]) the portal follows it; before that a hand-edited one stays.
@@ -1152,17 +1157,32 @@ internal fun buildConfigWtf(
     val agentLine = "SET agentUID \"${product.code}\""
     val wrongAgent = existing.any { it.startsWith("SET agentUID ", ignoreCase = true) && it != agentLine }
     val missingNarrator = NARRATOR_KEYS.filter { key -> existing.none { it.startsWith("SET $key ", ignoreCase = true) } }
-    if (existing.any { it == GX_API_LINE } && staleResolutionKeys.isEmpty() && !missingPortal && !wrongPortal && !wrongAgent && missingNarrator.isEmpty()) return null
+    if (existing.any { it == GX_API_LINE } && staleResolutionKeys.isEmpty() && !missingPortal && !wrongPortal && !wrongAgent && missingNarrator.isEmpty() && !staleAccount) return null
     return existing.filterNot { line ->
         line.startsWith("SET gxApi ", ignoreCase = true) ||
             (wrongPortal && line.startsWith("SET portal ", ignoreCase = true)) ||
             (wrongAgent && line.startsWith("SET agentUID ", ignoreCase = true)) ||
+            (staleAccount && line.startsWith(ACCOUNT_LIST, ignoreCase = true)) ||
             staleResolutionKeys.any { line.startsWith("SET $it ", ignoreCase = true) }
     } + listOfNotNull(
         GX_API_LINE,
         portalLine.takeIf { missingPortal || wrongPortal },
         agentLine.takeIf { wrongAgent },
+        accountLine.takeIf { staleAccount },
     ) + staleResolutionKeys.map { "SET $it \"$screenSize\"" } + missingNarrator.map { "SET $it \"0\"" }
+}
+
+private const val ACCOUNT_LIST = "SET accountList "
+
+/**
+ * The game's account list ([existing], e.g. `SET accountList "WoW1|!WoW2|"`) with [account] marked by `!`
+ * as the one to log into. The game's other accounts are kept, and [account] is added if the game hasn't seen it.
+ */
+internal fun accountListLine(existing: String?, account: String): String {
+    val names = existing?.substringAfter('"', "")?.substringBeforeLast('"', "")
+        ?.split('|')?.map { it.trim().removePrefix("!") }?.filter { it.isNotEmpty() }.orEmpty()
+    val all = if (names.any { it.equals(account, ignoreCase = true) }) names else names + account
+    return ACCOUNT_LIST + "\"" + all.joinToString("") { (if (it.equals(account, ignoreCase = true)) "!" else "") + it + "|" } + "\""
 }
 
 /** The language the install was made for, from the locale tag in `.build.info` (e.g. `deDE`); English if none. */

@@ -28,6 +28,9 @@ import app.gamenative.wow.install.InstallController
 import app.gamenative.wow.install.InstallUiState
 import app.gamenative.wow.product.GameRegion
 import app.gamenative.wow.product.GameRegions
+import app.gamenative.wow.product.GameAccounts
+import app.gamenative.wow.ui.components.FwChip
+import androidx.compose.foundation.horizontalScroll
 import app.gamenative.wow.product.ForeverTrack
 import app.gamenative.wow.product.GameVersion
 import app.gamenative.wow.product.RenderSize
@@ -96,11 +99,34 @@ fun AccountScreen(launcher: LauncherController, onBack: () -> Unit, onEditLogin:
                 if (launcher.hasSavedLogin) FwButton("Forget login", launcher::forgetLogin, kind = FwButtonKind.Danger)
             }
         }
+        GameAccountSection()
         FwSection("How it works") {
             Text(
-                "When you press Play the app hands your login to the game in a temporary file, then wipes it as soon as the game has read it, or after three minutes at most.",
+                "When you press Play the app hands your login to the game in a temporary file, then wipes it shortly after the game has read it, or after ten minutes at most.",
                 style = Fw.Secondary,
             )
+        }
+    }
+}
+
+/** Account, Game account: which WoW account to play when the Battle.net login has several. */
+@Composable
+private fun GameAccountSection() {
+    val context = LocalContext.current
+    var current by remember { mutableStateOf(GameAccounts.chosen) }
+    fun pick(number: Int?) {
+        GameAccounts.save(context, number)
+        current = number
+    }
+    FwSection("Game account") {
+        Text(
+            "If your Battle.net login has more than one WoW account, such as WoW1 and WoW2, choose the one to play. " +
+                "The Battle.net app lists them in its account menu. A change applies the next time you start the game.",
+            style = Fw.Secondary,
+        )
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FwChip("The game's choice", current == null, { pick(null) })
+            GameAccounts.NUMBERS.forEach { n -> FwChip(GameAccounts.name(n), current == n, { pick(n) }) }
         }
     }
 }

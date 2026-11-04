@@ -173,6 +173,31 @@ class GameConfigTest {
     }
 
     @Test
+    fun aPickedGameAccountIsMarkedAndTheOthersKept() {
+        assertEquals("SET accountList \"!WoW2|\"", accountListLine(null, "WoW2"))
+        assertEquals("SET accountList \"WoW1|!WoW2|\"", accountListLine("SET accountList \"!WoW1|WoW2|\"", "WoW2"))
+        assertEquals("SET accountList \"WoW1|!WoW3|\"", accountListLine("SET accountList \"!WoW1|\"", "WoW3"))
+        assertEquals("SET accountList \"!wow2|WoW1|\"", accountListLine("SET accountList \"wow2|!WoW1|\"", "WoW2"))
+    }
+
+    @Test
+    fun gameAccountIsWrittenOnlyWhenPickedAndOnlyOnce() {
+        assertTrue(buildConfigWtf(null, WowProduct.FOREVER, "1920x1080")!!.none { it.startsWith("SET accountList") })
+        assertTrue("SET accountList \"!WoW2|\"" in buildConfigWtf(null, WowProduct.FOREVER, "1920x1080", gameAccount = "WoW2")!!)
+
+        val existing = listOf(
+            "SET gxApi \"D3D11\"", "SET portal \"US\"", "SET agentUID \"wowf\"", "SET gxFullscreenResolution \"1920x1080\"",
+            "SET gxWindowedResolution \"1920x1080\"", "SET showScreenNarrationDialog \"0\"", "SET accessibilityScreenNarrationEnabled \"0\"",
+            "SET accountList \"!WoW1|WoW2|\"",
+        )
+        // Without a pick, the game's own list stays as it is.
+        assertNull(buildConfigWtf(existing, WowProduct.FOREVER, "1920x1080"))
+        val picked = buildConfigWtf(existing, WowProduct.FOREVER, "1920x1080", gameAccount = "WoW2")!!
+        assertEquals(listOf("SET accountList \"WoW1|!WoW2|\""), picked.filter { it.startsWith("SET accountList") })
+        assertNull(buildConfigWtf(picked, WowProduct.FOREVER, "1920x1080", gameAccount = "WoW2"))
+    }
+
+    @Test
     fun flavorInfoNamesProduct() {
         assertEquals("Product Flavor!STRING:0\nwowf\n", flavorInfoText(WowProduct.FOREVER))
     }
