@@ -1,18 +1,16 @@
-Download all of the game ahead of time, and use the app as an addon manager for any WoW install.
+Foreverywhere 1.0, for WoW Forever's launch day.
 
 ## New
 
-- **Download all game data.** **Game files → Download all game data** fetches everything the game would otherwise download while you play, about 50 GB, so the game never waits on the network for world data. It suits slow connections. You can keep playing while it runs; the new data takes over the next time the game is closed.
-- **Overnight mode.** Start the full download, open **Overnight mode** and leave the device on its charger. The screen goes black at the lowest brightness, and the progress text moves every minute so nothing burns in. It also stops Android 15 and later from pausing the download after six hours in the background. Tap the screen or press any button to leave.
-- **Addon manager mode.** If you play WoW another way, such as through DroidDeck, Winlator or a copy synced from a PC, the app can manage that install's addons and nothing else. Choose **Already play WoW another way?** on the welcome screen, or **Settings → Use addon manager mode**, and pick the game's `AddOns`, version or game folder. The app then opens straight to your addons. Turn it off again in **Settings**.
-- **Controller test.** **Settings → Controller test** shows each button press, the device that sent it and whether the game receives it.
-- **Debug report.** Turn on **Settings → Debug logging**, make a problem happen again, then use **Settings → Share debug report** to attach the logs to a GitHub issue. Email addresses and your saved login are removed from it.
-- **Snapdragon 8 Gen 5** devices get the Adreno 8xx graphics driver.
+- **Choose your WoW account.** If your Battle.net login has more than one WoW account, such as WoW1 and WoW2, choose the one to play under **Account → Game account**. Auto-login skips the game's own account picker, so before this the game could sign in to the wrong account or fail with a login error. Until you choose one, the game's own choice stays.
 
 ## Fixes
 
-- **Settings → Resolution** now applies every time. The game used to save its own 720p choice on exit and use it next time.
-- The game keeps running when you switch to another app, for example to get an authenticator code, so the Battle.net connection isn't lost.
+- The **Account** screen now says correctly when your temporary login file is wiped: shortly after the game reads it, or after ten minutes at most.
+
+## Recently added
+
+If you're coming from an earlier version, 0.7.0 added **Download all game data** with **Overnight mode**, **Addon manager mode**, the **controller test** and the **debug report**. See the [0.7.0 release](https://github.com/YoruDev-Ryland/WoWForeverywhere/releases/tag/v0.7.0) for details.
 
 ## Install
 

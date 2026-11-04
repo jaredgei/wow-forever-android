@@ -16,10 +16,10 @@ Install the app, let it download the game from Blizzard's servers, pick your add
 </div>
 
 > [!TIP]
-> ### New in 0.7.0: download everything up front, and addon manager mode
-> **Download all game data** fetches the whole game ahead of time, so it never waits on a slow connection, and **Overnight mode** lets it run on the charger without burning in the screen. Already play WoW another way, such as through DroidDeck? **Addon manager mode** turns the app into an addon manager for that install.
+> ### Version 1.0 for WoW Forever's launch
+> Foreverywhere 1.0 lets you choose which WoW account to play when your Battle.net login has more than one. Recent versions added **Download all game data** with **Overnight mode** for slow connections, and **Addon manager mode** for WoW installs you run some other way.
 >
-> **[Download the latest release](https://github.com/YoruDev-Ryland/WoWForeverywhere/releases/latest)** · [What's new in 0.7.0](https://github.com/YoruDev-Ryland/WoWForeverywhere/releases/tag/v0.7.0)
+> **[Download the latest release](https://github.com/YoruDev-Ryland/WoWForeverywhere/releases/latest)** · [What's new in 1.0.0](https://github.com/YoruDev-Ryland/WoWForeverywhere/releases/tag/v1.0.0)
 
 ## Features
 
@@ -133,6 +133,7 @@ The app needs **All files access** to change addons in another app's folder. Fol
 - **Controls.** Use the D-pad or stick to move and **A** to select. **B** goes back. In the game, your handheld's controller works through WoW's own gamepad mode.
 - **Back to the launcher.** While the game is starting, hold **Start + Select + L2 + R2**, or tap the back arrow, to cancel and return to the home screen.
 - **In-game menu.** Press Back during play to open the sidebar with the on-screen keyboard, the performance overlay and **Exit**.
+- **More than one WoW account.** If your Battle.net login has several, such as WoW1 and WoW2, choose the one to play under **Account → Game account**.
 - **Authenticator codes** are still typed in the game. The game keeps running when you switch apps, so you can get a code from an authenticator app on the same device.
 
 ### How your login is stored
@@ -190,6 +191,7 @@ These versions are experimental and get little support. They may run poorly or n
 | The keyboard doesn't appear in the game | Force-stop Gboard under **Settings → Apps → Gboard** and open the keyboard again. |
 | The app returns to the home screen after "Starting World of Warcraft" | Check the files in the game's `Errors` folder (`_forever_/Errors` or `_classic_beta_/Errors`). |
 | "This device can't run the game" | The device has no Adreno GPU. The game needs a Snapdragon chip. |
+| Login error with more than one WoW account on your Battle.net login | Choose the account under **Account → Game account**. Auto-login skips the game's own account picker. |
 | A button does nothing in the game | Open **Settings → Troubleshooting → Controller test** and press it. The screen shows which device sent the press and whether the game receives it. Add a screenshot of it to your issue. |
 | Addon manager mode can't open my game's folder | The folder is inside another app's private storage (`Android/data`), which Android doesn't let other apps open. If the other app can keep the game in a shared folder, such as on internal storage or an SD card, move it there. |
 
