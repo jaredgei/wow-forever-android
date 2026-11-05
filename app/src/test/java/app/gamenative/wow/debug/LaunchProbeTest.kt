@@ -32,6 +32,23 @@ class LaunchProbeTest {
     }
 
     @Test
+    fun listsEachMappedFileOnce() {
+        val maps = File(proc, "maps").apply {
+            writeText(
+                """
+                5c0000-5c1000 r--p 00000000 fd:01 100  /system/bin/linker64
+                5c1000-5c2000 r-xp 00001000 fd:01 100  /system/bin/linker64
+                7000-8000 rw-p 00000000 00:00 0  [anon:libc_malloc]
+                9000-a000 r-xp 00000000 fd:01 200  /data/user/0/app/files/imagefs/usr/lib/libredirect-bionic-wx.so
+                b000-c000 r--p 00000000 fd:01 300  /data/user/0/app/files/proton/bin/wine
+                c000-d000 rw-p 00000000 00:00 0  [stack]
+                """.trimIndent(),
+            )
+        }
+        assertEquals(listOf("linker64", "libredirect-bionic-wx.so", "wine"), LaunchProbe.loadedFiles(maps))
+    }
+
+    @Test
     fun saysSoWhenNothingElseRuns() {
         process(100, 10240, "app.wowforeverywhere", "app.wowforeverywhere", 'S')
         assertEquals("(none found in 1 /proc entries)", LaunchProbe.processes(proc, myUid = 10240, myPid = 100))

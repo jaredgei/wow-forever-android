@@ -56,9 +56,22 @@ object LaunchProbe {
         val cmdline = runCatching { File(dir, "cmdline").readBytes().toString(Charsets.UTF_8).replace('\u0000', ' ').trim() }.getOrDefault("")
         val wchan = runCatching { File(dir, "wchan").readText().trim() }.getOrDefault("").takeUnless { it.isEmpty() || it == "0" }
         val threads = runCatching { threadStates(File(dir, "task")) }.getOrDefault("")
+        val syscall = runCatching { File(dir, "syscall").readText().trim() }.getOrNull()?.takeIf { it.isNotEmpty() }
         return "pid $pid ppid ${field("PPid")} ${field("Name")} state ${field("State")} threads ${field("Threads")}$threads" +
-            (wchan?.let { " wchan $it" } ?: "") + " | $cmdline"
+            (wchan?.let { " wchan $it" } ?: "") + " | $cmdline" +
+            (syscall?.let { "\n    syscall: $it" } ?: "") +
+            loadedFiles(File(dir, "maps")).let { files -> if (files.isEmpty()) "" else "\n    files mapped, by address: " + files.joinToString(", ") }
     }
+
+    /**
+     * The files mapped into a process, once each, in address order (not load order): for a program stuck at
+     * start-up this shows which libraries it got as far as loading. Paths are shortened to their file names.
+     */
+    internal fun loadedFiles(maps: File): List<String> = runCatching {
+        maps.readLines().mapNotNull { line -> line.trim().split(Regex("\\s+"), limit = 6).getOrNull(5)?.takeIf { it.startsWith("/") } }
+            .map { it.substringAfterLast('/') }
+            .distinct()
+    }.getOrDefault(emptyList())
 
     /** Counts of the threads' states, e.g. " (S 12, R 1)": all asleep is a wait, R or D is busy or stuck in the kernel. */
     private fun threadStates(task: File): String {
