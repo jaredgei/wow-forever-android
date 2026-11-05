@@ -118,6 +118,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             if (preUnpack != null) preUnpack.run();
             pid = execGuestProgram();
             Log.d("BionicProgramLauncherComponent", "Process " + pid + " started");
+            app.gamenative.wow.debug.LaunchProbe.watch(environment.getContext(), pid);
             PluviaApp.setKeepAlive(true);
         }
     }
@@ -133,7 +134,9 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
                     Process.killProcess(subProcess.pid);
                 }
                 PluviaApp.setKeepAlive(false);
-                execShellCommand("wineserver -k");
+                // Bounded: this runs on the main thread when the player backs out, and a Wine that hung at start
+                // never answers, which froze the app until Android closed it (issue #9).
+                execShellCommand("wineserver -k", true, null, null, WINESERVER_KILL_TIMEOUT_SECONDS);
             }
         }
     }
@@ -538,6 +541,13 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
     }
 
     public String execShellCommand(String command, boolean includeStderr, EnvVars extraEnv, String[] unsetEnv) {
+        return execShellCommand(command, includeStderr, extraEnv, unsetEnv, -1);
+    }
+
+    private static final int WINESERVER_KILL_TIMEOUT_SECONDS = 2;
+
+    /** Runs [command] in the container; a positive [timeoutSeconds] kills it if it hasn't finished by then. */
+    public String execShellCommand(String command, boolean includeStderr, EnvVars extraEnv, String[] unsetEnv, int timeoutSeconds) {
         Context context = environment.getContext();
         ImageFs imageFs = ImageFs.find(context);
         File rootDir = imageFs.getRootDir();
@@ -596,7 +606,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
 
         Log.d("BionicProgramLauncherComponent", "Shell command is " + finalCommand);
         return ProcessHelper.execWithOutput(finalCommand, envVars.toStringArray(),
-                workingDir != null ? workingDir : imageFs.getRootDir(), includeStderr);
+                workingDir != null ? workingDir : imageFs.getRootDir(), includeStderr, timeoutSeconds);
     }
 
     public void restartWineServer() {

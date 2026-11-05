@@ -245,9 +245,11 @@ public abstract class ProcessHelper {
             stderrDrainer.setDaemon(true);
             stderrDrainer.start();
 
+            boolean timedOut = false;
             if (timeoutSeconds > 0) {
                 boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
                 if (!finished) {
+                    timedOut = true;
                     process.destroyForcibly();
                     try {
                         process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
@@ -263,12 +265,14 @@ public abstract class ProcessHelper {
             try { stdoutStream.close(); } catch (IOException ignored) {}
             try { stderrStream.close(); } catch (IOException ignored) {}
 
-            stdoutDrainer.join(5_000);
+            // After a timeout, a child the command started can still hold the pipes open; don't wait on them.
+            long drainWaitMs = timedOut ? 200 : 5_000;
+            stdoutDrainer.join(drainWaitMs);
             if (stdoutDrainer.isAlive()) {
                 stdoutDrainer.interrupt();
             }
 
-            stderrDrainer.join(5_000);
+            stderrDrainer.join(drainWaitMs);
             if (stderrDrainer.isAlive()) {
                 stderrDrainer.interrupt();
             }

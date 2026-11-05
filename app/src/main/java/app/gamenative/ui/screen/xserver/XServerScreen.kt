@@ -3618,6 +3618,7 @@ private fun setupXEnvironment(
     }
 
     ProcessHelper.addDebugCallback { line ->
+        app.gamenative.wow.debug.LaunchProbe.onOutput()
         if (captureLogs) {
             logFile?.appendText(line + "\n")
         }
