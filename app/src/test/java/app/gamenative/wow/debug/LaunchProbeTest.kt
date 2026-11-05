@@ -66,6 +66,23 @@ class LaunchProbeTest {
     }
 
     @Test
+    fun placesALockInALibrarysBssInThatLibrary() {
+        // libredirect-bionic-wx.so: .data at 0x10b00 shares a page with the start of .bss, the rest is anonymous.
+        val maps = listOf(
+            "7108300000-7108310000 r-xp 00000000 fd:01 10 /data/user/0/app/files/imagefs/usr/lib/libredirect-bionic-wx.so",
+            "7108310000-7108311000 rw-p 0000d000 fd:01 10 /data/user/0/app/files/imagefs/usr/lib/libredirect-bionic-wx.so",
+            "7108311000-710851f000 rw-p 00000000 00:00 0 [anon:.bss]",
+        )
+        val inPage = "98 0x7108310b80 0x89 0x1 0x0 0x0 0xffffffff 0x0 0x0"
+        val inAnon = "98 0x7108400010 0x89 0x1 0x0 0x0 0xffffffff 0x0 0x0"
+        assertTrue(LaunchProbe.whereIs(inPage, maps), LaunchProbe.whereIs(inPage, maps).endsWith("lock at: libredirect-bionic-wx.so rw-p +0x10b80"))
+        assertTrue(
+            LaunchProbe.whereIs(inAnon, maps),
+            LaunchProbe.whereIs(inAnon, maps).endsWith("lock at: libredirect-bionic-wx.so ([anon:.bss] after it) rw-p +0x100010"),
+        )
+    }
+
+    @Test
     fun saysSoWhenNothingElseRuns() {
         process(100, 10240, "app.wowforeverywhere", "app.wowforeverywhere", 'S')
         assertEquals("(none found in 1 /proc entries)", LaunchProbe.processes(proc, myUid = 10240, myPid = 100))

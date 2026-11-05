@@ -78,16 +78,30 @@ object LaunchProbe {
         return (pc?.let { "\n    code at: ${locate(it, maps)}" } ?: "") + (lock?.let { "\n    waiting on lock at: ${locate(it, maps)}" } ?: "")
     }
 
+    /**
+     * `file perms +0xADDR`, where ADDR is the address relative to the library's load base, so it matches the
+     * library's own section addresses (readelf -S). A library's zero-initialised data (.bss) is mapped as
+     * anonymous memory right after its file mappings, so anonymous memory is placed in the file before it.
+     */
     private fun locate(address: ULong, maps: List<String>): String {
+        val bases = HashMap<String, ULong>()
+        var lastFile: String? = null
         for (line in maps) {
             val p = line.trim().split(Regex("\\s+"), limit = 6)
             val range = p.getOrNull(0)?.split('-') ?: continue
             val start = range.getOrNull(0)?.toULongOrNull(16) ?: continue
             val end = range.getOrNull(1)?.toULongOrNull(16) ?: continue
+            val path = p.getOrNull(5).orEmpty()
+            if (path.startsWith("/")) {
+                bases.getOrPut(path) { start - (p.getOrNull(2)?.toULongOrNull(16) ?: 0uL) }
+                lastFile = path
+            }
             if (address < start || address >= end) continue
-            val fileOffset = (p.getOrNull(2)?.toULongOrNull(16) ?: 0uL) + (address - start)
-            val name = p.getOrNull(5)?.substringAfterLast('/')?.ifEmpty { null } ?: "anonymous memory"
-            return "$name ${p.getOrNull(1).orEmpty()} +0x${fileOffset.toString(16)}"
+            val perms = p.getOrNull(1).orEmpty()
+            val owner = if (path.startsWith("/")) path else lastFile
+            val base = owner?.let { bases[it] } ?: return "anonymous memory $perms ${path.ifEmpty { "" }}".trim()
+            val where = owner.substringAfterLast('/') + if (path.startsWith("/")) "" else " (${path.ifEmpty { "anonymous" }} after it)"
+            return "$where $perms +0x${(address - base).toString(16)}"
         }
         return "0x${address.toString(16)} (not mapped)"
     }

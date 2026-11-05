@@ -97,6 +97,13 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             }
             return null;
         }
+        // Android 17 (API 37): wine deadlocks at start in the full shim's one-time "faster file path" setup
+        // (its pthread_once is re-entered on the same thread), so it never prints anything (issue #9). The
+        // minimal shim has no such setup and keeps what Wine needs to run under W^X.
+        if (BuildConfig.MODERN_ANDROID && android.os.Build.VERSION.SDK_INT >= 37) {
+            timber.log.Timber.i("Android %d: preloading the minimal libredirect shim", android.os.Build.VERSION.SDK_INT);
+            return imageFs.getLibDir() + "/libredirect-bionic-wx-minimal.so";
+        }
         return imageFs.getLibDir() + "/" + BuildConfig.PRELOAD_BIONIC_SO;
     }
 
