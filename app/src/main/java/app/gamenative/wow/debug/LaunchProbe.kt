@@ -2,13 +2,14 @@ package app.gamenative.wow.debug
 
 import android.content.Context
 import android.os.Process
+import java.io.File
 import kotlin.concurrent.thread
 import timber.log.Timber
 
 /**
  * With debug logging on: when Wine has printed nothing [DELAY_MS] after the game program started, logs every
- * other process running as the app and what each is waiting on, so a launch that hangs silently (issue #9)
- * shows which program is stuck and where.
+ * other process running as the app and what state it's in, so a launch that hangs silently (issue #9) shows
+ * which program is stuck. Read from /proc, since `ps` doesn't list them on every device.
  */
 object LaunchProbe {
     private const val DELAY_MS = 30_000L
@@ -38,19 +39,34 @@ object LaunchProbe {
         }
     }
 
-    /** `ps` rows for this app's user other than the app itself: state, kernel wait channel and command line. */
-    internal fun processes(): String = runCatching {
-        val proc = ProcessBuilder("ps", "-A", "-o", "USER,PID,PPID,S,WCHAN,TIME,ARGS").redirectErrorStream(true).start()
-        val lines = proc.inputStream.bufferedReader().use { it.readLines() }
-        proc.waitFor()
-        ownRows(lines, Process.myPid())
-    }.getOrElse { "ps unavailable: ${it.message}" }
+    /** One line per process running as this app, other than the app itself. */
+    internal fun processes(proc: File = File("/proc"), myUid: Int = Process.myUid(), myPid: Int = Process.myPid()): String = runCatching {
+        val rows = proc.listFiles { f -> f.isDirectory && f.name.all(Char::isDigit) }.orEmpty()
+            .sortedBy { it.name.toInt() }
+            .mapNotNull { dir -> describe(dir, myUid, myPid) }
+        rows.ifEmpty { listOf("(none found in ${proc.listFiles()?.size ?: 0} /proc entries)") }.joinToString("\n")
+    }.getOrElse { "Couldn't read /proc: $it" }
 
-    /** The header and the rows whose user is the one running [myPid], without [myPid] itself. */
-    internal fun ownRows(lines: List<String>, myPid: Int): String {
-        val rows = lines.drop(1).map { it.trim().split(Regex("\\s+"), limit = 7) }.filter { it.size >= 2 }
-        val user = rows.firstOrNull { it[1] == myPid.toString() }?.get(0) ?: return "app process not found in ps"
-        val own = lines.drop(1).filter { it.trim().split(Regex("\\s+"), limit = 3).let { r -> r.size >= 2 && r[0] == user && r[1] != myPid.toString() } }
-        return (listOfNotNull(lines.firstOrNull()) + own.ifEmpty { listOf("(none)") }).joinToString("\n")
+    private fun describe(dir: File, myUid: Int, myPid: Int): String? {
+        val pid = dir.name.toInt()
+        if (pid == myPid) return null
+        val status = runCatching { File(dir, "status").readLines() }.getOrNull() ?: return null
+        fun field(name: String) = status.firstOrNull { it.startsWith("$name:") }?.substringAfter(':')?.trim().orEmpty()
+        if (field("Uid").split(Regex("\\s+")).firstOrNull() != myUid.toString()) return null
+        val cmdline = runCatching { File(dir, "cmdline").readBytes().toString(Charsets.UTF_8).replace('\u0000', ' ').trim() }.getOrDefault("")
+        val wchan = runCatching { File(dir, "wchan").readText().trim() }.getOrDefault("").takeUnless { it.isEmpty() || it == "0" }
+        val threads = runCatching { threadStates(File(dir, "task")) }.getOrDefault("")
+        return "pid $pid ppid ${field("PPid")} ${field("Name")} state ${field("State")} threads ${field("Threads")}$threads" +
+            (wchan?.let { " wchan $it" } ?: "") + " | $cmdline"
+    }
+
+    /** Counts of the threads' states, e.g. " (S 12, R 1)": all asleep is a wait, R or D is busy or stuck in the kernel. */
+    private fun threadStates(task: File): String {
+        val states = task.listFiles().orEmpty().mapNotNull { t ->
+            runCatching { File(t, "stat").readText().substringAfterLast(')').trim().firstOrNull() }.getOrNull()
+        }
+        if (states.isEmpty()) return ""
+        return states.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }
+            .joinToString(", ", " (", ")") { "${it.key} ${it.value}" }
     }
 }

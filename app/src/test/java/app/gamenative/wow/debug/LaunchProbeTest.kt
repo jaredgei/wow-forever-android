@@ -1,26 +1,39 @@
 package app.gamenative.wow.debug
 
+import java.io.File
+import java.nio.file.Files
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LaunchProbeTest {
-    private val ps = listOf(
-        "USER           PID  PPID S WCHAN      TIME ARGS",
-        "root             1     0 S 0      00:00:02 init second_stage",
-        "u0_a240      12348   900 S 0      00:00:09 app.wowforeverywhere",
-        "u0_a240      12400 12348 S 0      00:00:00 /system/bin/linker64 /data/user/0/app.wowforeverywhere/files/imagefs/usr/bin/wine explorer",
-        "u0_a240      12401 12400 D 0      00:00:00 wineserver",
-        "u0_a999      13000   900 S 0      00:00:01 com.other.app",
-    )
+    private val proc: File = Files.createTempDirectory("proc").toFile()
+
+    private fun process(pid: Int, uid: Int, name: String, cmdline: String, vararg threadStates: Char) {
+        val dir = File(proc, "$pid").apply { mkdirs() }
+        File(dir, "status").writeText("Name:\t$name\nState:\tS (sleeping)\nPPid:\t1\nUid:\t$uid\t$uid\t$uid\t$uid\nThreads:\t${threadStates.size}\n")
+        File(dir, "cmdline").writeText(cmdline.replace(' ', '\u0000') + "\u0000")
+        File(dir, "wchan").writeText("0")
+        threadStates.forEachIndexed { i, s -> File(dir, "task/${pid + i}").mkdirs(); File(dir, "task/${pid + i}/stat").writeText("${pid + i} ($name) $s 1 2 3") }
+    }
 
     @Test
-    fun listsOnlyTheAppsOtherProcesses() {
-        assertEquals(listOf(ps[0], ps[3], ps[4]).joinToString("\n"), LaunchProbe.ownRows(ps, 12348))
+    fun listsTheAppsOtherProcessesWithTheirThreadStates() {
+        process(100, 10240, "app.wowforeverywhere", "app.wowforeverywhere", 'S')
+        process(101, 10240, "wine", "/system/bin/linker64 /data/wine explorer", 'S', 'S', 'D')
+        process(102, 10999, "other", "com.other.app", 'R')
+        File(proc, "self").mkdirs()
+
+        val rows = LaunchProbe.processes(proc, myUid = 10240, myPid = 100).lines()
+
+        assertEquals(1, rows.size)
+        assertTrue(rows[0], rows[0].startsWith("pid 101 ppid 1 wine state S (sleeping) threads 3 (S 2, D 1)"))
+        assertTrue(rows[0], rows[0].endsWith("| /system/bin/linker64 /data/wine explorer"))
     }
 
     @Test
     fun saysSoWhenNothingElseRuns() {
-        assertEquals(ps[0] + "\n(none)", LaunchProbe.ownRows(ps.take(3), 12348))
-        assertEquals("app process not found in ps", LaunchProbe.ownRows(ps.take(2), 12348))
+        process(100, 10240, "app.wowforeverywhere", "app.wowforeverywhere", 'S')
+        assertEquals("(none found in 1 /proc entries)", LaunchProbe.processes(proc, myUid = 10240, myPid = 100))
     }
 }
