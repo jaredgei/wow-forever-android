@@ -3603,7 +3603,8 @@ private fun setupXEnvironment(
         if (enableWineDebug && wineDebugChannels.isNotEmpty())
             "+" + wineDebugChannels.replace(",", ",+")
         else if (foreverywhereDebug)
-            "-all,err+all"
+            // Each DLL load too, so a start-up that hangs without an error shows how far it got (issue #9).
+            "-all,err+all,+loaddll"
         else
             "-all",
     )
@@ -3618,6 +3619,7 @@ private fun setupXEnvironment(
     }
 
     ProcessHelper.addDebugCallback { line ->
+        app.gamenative.wow.debug.LaunchProbe.onOutput()
         if (captureLogs) {
             logFile?.appendText(line + "\n")
         }

@@ -97,6 +97,13 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             }
             return null;
         }
+        // Android 17 (API 37): wine deadlocks at start in the full shim's one-time "faster file path" setup
+        // (its pthread_once is re-entered on the same thread), so it never prints anything (issue #9). The
+        // minimal shim has no such setup and keeps what Wine needs to run under W^X.
+        if (BuildConfig.MODERN_ANDROID && android.os.Build.VERSION.SDK_INT >= 37) {
+            timber.log.Timber.i("Android %d: preloading the minimal libredirect shim", android.os.Build.VERSION.SDK_INT);
+            return imageFs.getLibDir() + "/libredirect-bionic-wx-minimal.so";
+        }
         return imageFs.getLibDir() + "/" + BuildConfig.PRELOAD_BIONIC_SO;
     }
 
@@ -118,6 +125,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             if (preUnpack != null) preUnpack.run();
             pid = execGuestProgram();
             Log.d("BionicProgramLauncherComponent", "Process " + pid + " started");
+            app.gamenative.wow.debug.LaunchProbe.watch(environment.getContext(), pid);
             PluviaApp.setKeepAlive(true);
         }
     }
@@ -133,7 +141,9 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
                     Process.killProcess(subProcess.pid);
                 }
                 PluviaApp.setKeepAlive(false);
-                execShellCommand("wineserver -k");
+                // Bounded: this runs on the main thread when the player backs out, and a Wine that hung at start
+                // never answers, which froze the app until Android closed it (issue #9).
+                execShellCommand("wineserver -k", true, null, null, WINESERVER_KILL_TIMEOUT_SECONDS);
             }
         }
     }
@@ -426,6 +436,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             synchronized (lock) {
                 pid = -1;
             }
+            Log.i("BionicProgramLauncherComponent", "Guest program exited with status " + status);
             if (!environment.isWinetricksRunning()) {
                 PluviaApp.setKeepAlive(false);
                 if (terminationCallback != null)
@@ -537,6 +548,13 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
     }
 
     public String execShellCommand(String command, boolean includeStderr, EnvVars extraEnv, String[] unsetEnv) {
+        return execShellCommand(command, includeStderr, extraEnv, unsetEnv, -1);
+    }
+
+    private static final int WINESERVER_KILL_TIMEOUT_SECONDS = 2;
+
+    /** Runs [command] in the container; a positive [timeoutSeconds] kills it if it hasn't finished by then. */
+    public String execShellCommand(String command, boolean includeStderr, EnvVars extraEnv, String[] unsetEnv, int timeoutSeconds) {
         Context context = environment.getContext();
         ImageFs imageFs = ImageFs.find(context);
         File rootDir = imageFs.getRootDir();
@@ -595,7 +613,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
 
         Log.d("BionicProgramLauncherComponent", "Shell command is " + finalCommand);
         return ProcessHelper.execWithOutput(finalCommand, envVars.toStringArray(),
-                workingDir != null ? workingDir : imageFs.getRootDir(), includeStderr);
+                workingDir != null ? workingDir : imageFs.getRootDir(), includeStderr, timeoutSeconds);
     }
 
     public void restartWineServer() {

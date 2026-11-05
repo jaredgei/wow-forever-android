@@ -22,7 +22,7 @@ import timber.log.Timber
  */
 object DebugReport {
     private const val MAX_FILE_BYTES = 1_000_000L
-    private const val MAX_LOGCAT_BYTES = 3_000_000
+    private const val MAX_LOGCAT_CHARS = 3_000_000
     private val EMAIL = Regex("""[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}""")
     private val TEXT_FILES = setOf("txt", "log")
 
@@ -88,13 +88,22 @@ object DebugReport {
         }
     }
 
-    /** This process's part of the system log; apps can read their own lines without any permission. */
+    /**
+     * The app's part of the system log: every process running as this app, so Wine and the processes it starts
+     * are included, as are Android's denials of them and an earlier run of the app that's still in the buffer.
+     * Apps can read their own lines without any permission. Older logcats without `--uid` get this process only.
+     */
     private fun logcat(): String = runCatching {
-        val proc = ProcessBuilder("logcat", "-d", "-v", "threadtime", "--pid", Process.myPid().toString()).redirectErrorStream(true).start()
-        val bytes = proc.inputStream.use { it.readBytes() }
-        proc.waitFor()
-        String(bytes.copyOfRange((bytes.size - MAX_LOGCAT_BYTES).coerceAtLeast(0), bytes.size))
+        val (status, text) = runLogcat("--uid", Process.myUid().toString())
+        val output = if (status == 0) text else runLogcat("--pid", Process.myPid().toString()).second
+        output.takeLast(MAX_LOGCAT_CHARS)
     }.getOrElse { "logcat unavailable: ${it.message}" }
+
+    private fun runLogcat(vararg filter: String): Pair<Int, String> {
+        val proc = ProcessBuilder(listOf("logcat", "-d", "-v", "threadtime") + filter).redirectErrorStream(true).start()
+        val text = proc.inputStream.use { String(it.readBytes()) }
+        return proc.waitFor() to text
+    }
 
     private fun newest(dir: File, count: Int): List<File> =
         dir.listFiles { f -> f.isFile && f.extension.lowercase() in TEXT_FILES }.orEmpty().sortedByDescending { it.lastModified() }.take(count)
