@@ -1,17 +1,8 @@
-Fixes the game never starting on Android 17.
+Help for logins that Blizzard blocks.
 
-## Fixes
+## New
 
-- **Android 17.** On Android 17 the game sat on "Launching game..." forever: Wine got stuck waiting on itself inside one of the helper libraries the app loads into it, before it could print anything. On Android 17 the app now loads a simpler version of that library. Other Android versions are unchanged. Thanks to rossieeissor for testing six builds to track it down (#9).
-- **Back while the game is starting.** If the game got stuck starting, pressing Back froze the app for several seconds until Android closed it. It now returns to the app within a couple of seconds.
-
-## Debug reports
-
-With debug logging on in **Settings → Troubleshooting**, debug reports now show much more when the game doesn't start:
-
-- The system log for all of the app's processes, including the game's, not just the app itself.
-- Each step of Wine's startup.
-- If the game hasn't started after 30 seconds, which parts of it are still running and what they're waiting on.
+- **Fix a blocked login.** If the game says "You have been disconnected" with BLZ51914400 right after you log in, often after a CAPTCHA, Blizzard is blocking the sign-in because it comes from a network your account hasn't used, such as mobile data or a new Wi-Fi. **Account → Fix a blocked login** explains what to do and opens battle.net so you can sign in once on the web, which unblocks it. BLZ51914500 means the password didn't match, so re-enter it under **Account → Change login**.
 
 ## Install
 
