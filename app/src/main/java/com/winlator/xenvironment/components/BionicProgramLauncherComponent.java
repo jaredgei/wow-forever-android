@@ -426,6 +426,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             synchronized (lock) {
                 pid = -1;
             }
+            Log.i("BionicProgramLauncherComponent", "Guest program exited with status " + status);
             if (!environment.isWinetricksRunning()) {
                 PluviaApp.setKeepAlive(false);
                 if (terminationCallback != null)
