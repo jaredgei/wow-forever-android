@@ -192,6 +192,7 @@ These versions are experimental and get little support. They may run poorly or n
 | The app returns to the home screen after "Starting World of Warcraft" | Check the files in the game's `Errors` folder (`_forever_/Errors` or `_classic_beta_/Errors`). |
 | "This device can't run the game" | The device has no Adreno GPU. The game needs a Snapdragon chip. |
 | Login error with more than one WoW account on your Battle.net login | Choose the account under **Account → Game account**. Auto-login skips the game's own account picker. |
+| Stuck on "Launching game..." on Android 17 | Update the app to 1.0.1 or later, which fixes a hang at start on Android 17. |
 | A button does nothing in the game | Open **Settings → Troubleshooting → Controller test** and press it. The screen shows which device sent the press and whether the game receives it. Add a screenshot of it to your issue. |
 | Addon manager mode can't open my game's folder | The folder is inside another app's private storage (`Android/data`), which Android doesn't let other apps open. If the other app can keep the game in a shared folder, such as on internal storage or an SD card, move it there. |
 
