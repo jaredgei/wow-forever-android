@@ -191,6 +191,8 @@ These versions are experimental and get little support. They may run poorly or n
 | The keyboard doesn't appear in the game | Force-stop Gboard under **Settings → Apps → Gboard** and open the keyboard again. |
 | The app returns to the home screen after "Starting World of Warcraft" | Check the files in the game's `Errors` folder (`_forever_/Errors` or `_classic_beta_/Errors`). |
 | "This device can't run the game" | The device has no Adreno GPU. The game needs a Snapdragon chip. |
+| *You have been disconnected (BLZ51914400)* right after logging in, often after a CAPTCHA | Blizzard blocks game logins from a network your account hasn't used, such as mobile data or a new Wi-Fi. Sign in once at [battle.net](https://account.battle.net/) in your browser on the same connection, then start the game again. **Account → Fix a blocked login** walks you through it. |
+| *You have been disconnected (BLZ51914500)* | The password didn't match. Re-enter it under **Account → Change login**. |
 | Login error with more than one WoW account on your Battle.net login | Choose the account under **Account → Game account**. Auto-login skips the game's own account picker. |
 | Stuck on "Launching game..." on Android 17 | Update the app to 1.0.1 or later, which fixes a hang at start on Android 17. |
 | A button does nothing in the game | Open **Settings → Troubleshooting → Controller test** and press it. The screen shows which device sent the press and whether the game receives it. Add a screenshot of it to your issue. |

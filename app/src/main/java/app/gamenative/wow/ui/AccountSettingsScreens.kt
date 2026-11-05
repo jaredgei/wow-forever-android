@@ -100,11 +100,48 @@ fun AccountScreen(launcher: LauncherController, onBack: () -> Unit, onEditLogin:
             }
         }
         GameAccountSection()
+        BlockedLoginSection()
         FwSection("How it works") {
             Text(
                 "When you press Play the app hands your login to the game in a temporary file, then wipes it shortly after the game has read it, or after ten minutes at most.",
                 style = Fw.Secondary,
             )
+        }
+    }
+}
+
+/**
+ * Account, Can't log in: Blizzard locks direct game logins from a network the account hasn't used (BLZ51914400,
+ * after any CAPTCHA), and one sign-in on the web lifts it. BLZ51914500 is a password that didn't match.
+ */
+@Composable
+private fun BlockedLoginSection() {
+    val context = LocalContext.current
+    var open by remember { mutableStateOf(false) }
+    FwSection("Can't log in?") {
+        Text(
+            "If the game says \"You have been disconnected\" with BLZ51914400 or BLZ51914500 right after you log in, Blizzard is blocking the sign-in.",
+            style = Fw.Secondary,
+        )
+        FwButton("Fix a blocked login", { open = true }, kind = FwButtonKind.Ghost)
+    }
+    if (open) {
+        FwDialog(
+            title = "Blocked login",
+            message = "Blizzard blocks game logins from a network it hasn't seen your account use, such as mobile data or a new Wi-Fi. Signing in once on the web unblocks it.",
+            confirm = "Open battle.net",
+            onConfirm = {
+                open = false
+                Links.open(context, Links.BATTLE_NET)
+            },
+            onDismiss = { open = false },
+            dismiss = "Close",
+        ) {
+            listOf(
+                "1. Tap Open battle.net and sign in there, on the same connection.",
+                "2. Come back to the app and start the game again.",
+                "3. Still getting BLZ51914500? Your password didn't match. Re-enter it with Change login.",
+            ).forEach { Text(it, style = Fw.Text) }
         }
     }
 }
