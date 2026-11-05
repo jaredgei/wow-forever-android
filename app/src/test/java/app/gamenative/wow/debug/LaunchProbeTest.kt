@@ -45,7 +45,24 @@ class LaunchProbeTest {
                 """.trimIndent(),
             )
         }
-        assertEquals(listOf("linker64", "libredirect-bionic-wx.so", "wine"), LaunchProbe.loadedFiles(maps))
+        assertEquals(listOf("linker64", "libredirect-bionic-wx.so", "wine"), LaunchProbe.loadedFiles(maps.readLines()))
+    }
+
+    @Test
+    fun placesAFutexLockAndTheCodeInTheirFiles() {
+        // The line from the issue #9 report, with maps around its two addresses.
+        val syscall = "98 0x7108328b80 0x89 0x1 0x0 0x0 0xffffffff 0x7ff54e0960 0x710b6f94a4"
+        val maps = listOf(
+            "7108320000-7108328000 r--p 00004000 fd:01 10 /data/app/lib/arm64/libgnoverlay.so",
+            "7108328000-7108329000 rw-p 0000c000 fd:01 10 /data/app/lib/arm64/libgnoverlay.so",
+            "710b600000-710b700000 r-xp 00040000 fd:01 20 /apex/com.android.runtime/lib64/bionic/libc.so",
+        )
+        assertEquals(
+            "\n    code at: libc.so r-xp +0x1394a4\n    waiting on lock at: libgnoverlay.so rw-p +0xcb80",
+            LaunchProbe.whereIs(syscall, maps),
+        )
+        assertEquals("\n    code at: 0x710b6f94a4 (not mapped)\n    waiting on lock at: 0x7108328b80 (not mapped)", LaunchProbe.whereIs(syscall, emptyList()))
+        assertEquals("\n    code at: libc.so r-xp +0x1394a4", LaunchProbe.whereIs(syscall.replaceFirst("98", "73"), maps))
     }
 
     @Test

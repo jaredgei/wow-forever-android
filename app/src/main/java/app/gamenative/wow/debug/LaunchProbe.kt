@@ -57,18 +57,47 @@ object LaunchProbe {
         val wchan = runCatching { File(dir, "wchan").readText().trim() }.getOrDefault("").takeUnless { it.isEmpty() || it == "0" }
         val threads = runCatching { threadStates(File(dir, "task")) }.getOrDefault("")
         val syscall = runCatching { File(dir, "syscall").readText().trim() }.getOrNull()?.takeIf { it.isNotEmpty() }
+        val maps = runCatching { File(dir, "maps").readLines() }.getOrDefault(emptyList())
         return "pid $pid ppid ${field("PPid")} ${field("Name")} state ${field("State")} threads ${field("Threads")}$threads" +
             (wchan?.let { " wchan $it" } ?: "") + " | $cmdline" +
-            (syscall?.let { "\n    syscall: $it" } ?: "") +
-            loadedFiles(File(dir, "maps")).let { files -> if (files.isEmpty()) "" else "\n    files mapped, by address: " + files.joinToString(", ") }
+            (syscall?.let { "\n    syscall: $it" + whereIs(it, maps) } ?: "") +
+            loadedFiles(maps).let { files -> if (files.isEmpty()) "" else "\n    files mapped, by address: " + files.joinToString(", ") }
+    }
+
+    private const val FUTEX = 98
+
+    /**
+     * For a thread blocked in a system call (`nr arg0..arg5 sp pc` in /proc/pid/syscall): which file the code
+     * address is in and, for a futex, which file the lock word is in, as `file perms +offset into the file`.
+     */
+    internal fun whereIs(syscall: String, maps: List<String>): String {
+        val f = syscall.split(Regex("\\s+"))
+        if (f.size < 9) return ""
+        val pc = f[8].removePrefix("0x").toULongOrNull(16)
+        val lock = f[1].removePrefix("0x").toULongOrNull(16)?.takeIf { f[0] == FUTEX.toString() }
+        return (pc?.let { "\n    code at: ${locate(it, maps)}" } ?: "") + (lock?.let { "\n    waiting on lock at: ${locate(it, maps)}" } ?: "")
+    }
+
+    private fun locate(address: ULong, maps: List<String>): String {
+        for (line in maps) {
+            val p = line.trim().split(Regex("\\s+"), limit = 6)
+            val range = p.getOrNull(0)?.split('-') ?: continue
+            val start = range.getOrNull(0)?.toULongOrNull(16) ?: continue
+            val end = range.getOrNull(1)?.toULongOrNull(16) ?: continue
+            if (address < start || address >= end) continue
+            val fileOffset = (p.getOrNull(2)?.toULongOrNull(16) ?: 0uL) + (address - start)
+            val name = p.getOrNull(5)?.substringAfterLast('/')?.ifEmpty { null } ?: "anonymous memory"
+            return "$name ${p.getOrNull(1).orEmpty()} +0x${fileOffset.toString(16)}"
+        }
+        return "0x${address.toString(16)} (not mapped)"
     }
 
     /**
      * The files mapped into a process, once each, in address order (not load order): for a program stuck at
      * start-up this shows which libraries it got as far as loading. Paths are shortened to their file names.
      */
-    internal fun loadedFiles(maps: File): List<String> = runCatching {
-        maps.readLines().mapNotNull { line -> line.trim().split(Regex("\\s+"), limit = 6).getOrNull(5)?.takeIf { it.startsWith("/") } }
+    internal fun loadedFiles(maps: List<String>): List<String> = runCatching {
+        maps.mapNotNull { line -> line.trim().split(Regex("\\s+"), limit = 6).getOrNull(5)?.takeIf { it.startsWith("/") } }
             .map { it.substringAfterLast('/') }
             .distinct()
     }.getOrDefault(emptyList())
