@@ -1,8 +1,12 @@
-Help for logins that Blizzard blocks.
+Frame generation can't stop the game from starting, and more help for blocked logins.
 
-## New
+## Fixed
 
-- **Fix a blocked login.** If the game says "You have been disconnected" with BLZ51914400 right after you log in, often after a CAPTCHA, Blizzard is blocking the sign-in because it comes from a network your account hasn't used, such as mobile data or a new Wi-Fi. **Account → Fix a blocked login** explains what to do and opens battle.net so you can sign in once on the web, which unblocks it. BLZ51914500 means the password didn't match, so re-enter it under **Account → Change login**.
+- **A wrong Lossless.dll no longer closes the game.** If the Lossless.dll you added doesn't have the frame generation shaders, the game used to drop straight back to the home screen. Now the game starts without frame generation and tells you, Settings flags the file, and choosing a file like that is turned down with a note on where to get the right one: `Steam/steamapps/common/Lossless Scaling` from a current Steam install.
+
+## Changed
+
+- **Fix a blocked login** now starts with the step that got one player past BLZ51914400: turn off any phone setting that uses Wi-Fi and mobile data together, such as *Optimize network for speed* in **Settings → System → Network**.
 
 ## Install
 
