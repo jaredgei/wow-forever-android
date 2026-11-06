@@ -1022,7 +1022,15 @@ internal fun prepareLaunch(
     check(containerManager.hasContainer(CONTAINER_ID)) { "Container creation failed. Check system storage and logs." }
     // Frame generation follows Settings; the in-game menu's own LSFG choices stay in the container.
     containerManager.getContainerById(CONTAINER_ID)?.apply {
-        putExtra(LsfgVkManager.EXTRA_ARMED, FrameGeneration.isArmed(context).toString())
+        // A Lossless.dll without the shaders would make the frame-generation layer close the game, so it's left out.
+        val frameGeneration = FrameGeneration.isArmed(context) && (FrameGeneration.hasShaders(context) || run {
+            Timber.w("Frame generation skipped: Lossless.dll is missing its shaders")
+            app.gamenative.ui.util.SnackbarManager.show(
+                "Frame generation is off for this session: your Lossless.dll doesn't have the shaders it needs. Choose another in Settings.",
+            )
+            false
+        })
+        putExtra(LsfgVkManager.EXTRA_ARMED, frameGeneration.toString())
         saveData()
     }
     return CONTAINER_ID
