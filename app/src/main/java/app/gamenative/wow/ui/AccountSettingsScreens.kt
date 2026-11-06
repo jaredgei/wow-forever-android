@@ -128,7 +128,8 @@ private fun BlockedLoginSection() {
     if (open) {
         FwDialog(
             title = "Blocked login",
-            message = "Blizzard blocks game logins from a network it hasn't seen your account use, such as mobile data or a new Wi-Fi. Signing in once on the web unblocks it.",
+            message = "Blizzard blocks game logins from a network it hasn't seen your account use, such as mobile data or a new Wi-Fi, " +
+                "or a login that arrives over Wi-Fi and mobile data at once.",
             confirm = "Open battle.net",
             onConfirm = {
                 open = false
@@ -138,9 +139,10 @@ private fun BlockedLoginSection() {
             dismiss = "Close",
         ) {
             listOf(
-                "1. Tap Open battle.net and sign in there, on the same connection.",
-                "2. Come back to the app and start the game again.",
-                "3. Still getting BLZ51914500? Your password didn't match. Re-enter it with Change login.",
+                "1. Turn off any phone setting that uses Wi-Fi and mobile data together, such as Optimize network for speed in Settings, System, Network.",
+                "2. Tap Open battle.net and sign in there, on the same connection.",
+                "3. Come back to the app and start the game again.",
+                "4. Still getting BLZ51914500? Your password didn't match. Re-enter it with Change login.",
             ).forEach { Text(it, style = Fw.Text) }
         }
     }
