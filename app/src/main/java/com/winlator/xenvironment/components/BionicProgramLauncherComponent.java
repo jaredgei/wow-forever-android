@@ -97,6 +97,16 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             }
             return null;
         }
+        // ColorOS/OxygenOS 17 (Android 17) launch hang: the full libredirect runs its FFP init
+        // under pthread_once (ffp_once) and reads /proc/self/environ. The first malloc there
+        // triggers OPPO's libc oplus_malloc_init_once_func, which calls open(). That open() is
+        // interposed (libgnoverlay -> libredirect) and re-enters ffp_init on the same thread, so
+        // Wine deadlocks on ffp_once before ntdll loads. FFP is only used for games on removable
+        // storage, so preload the W^X-only minimal shim (no FFP) unless FFP is actually needed.
+        if (BuildConfig.MODERN_ANDROID && (container == null || !container.isFasterExternalLoading())) {
+            File minimal = new File(imageFs.getLibDir(), "libredirect-bionic-wx-minimal.so");
+            if (minimal.exists()) return minimal.getAbsolutePath();
+        }
         return imageFs.getLibDir() + "/" + BuildConfig.PRELOAD_BIONIC_SO;
     }
 
