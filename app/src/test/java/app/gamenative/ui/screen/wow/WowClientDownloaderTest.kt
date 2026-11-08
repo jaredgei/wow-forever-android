@@ -163,9 +163,72 @@ class WowClientDownloaderTest {
     }
 
     @Test
+    fun versionServiceBase_usesRegionalHttpsEndpoint() {
+        assertEquals(
+            "https://eu.version.battle.net/v2/products/wowf",
+            WowClientDownloader.versionServiceBase("eu"),
+        )
+        assertEquals(
+            "https://us.version.battle.net/v2/products/wowf",
+            WowClientDownloader.versionServiceBase("US"),
+        )
+        assertEquals(
+            "https://cn.version.battlenet.com.cn/v2/products/wowf",
+            WowClientDownloader.versionServiceBase("cn"),
+        )
+    }
+
+    @Test
+    fun secureCdnServers_keepsOnlyHttpsAndStripsQueryParameters() {
+        val servers = listOf(
+            "http://eu.cdn.blizzard.com/?maxhosts=4",
+            "https://eu.cdn.blizzard.com/?maxhosts=4&fallback=1",
+            "https://level3.ssl.blizzard.com/?fallback=1&maxhosts=4",
+        )
+
+        assertEquals(
+            listOf(
+                "https://eu.cdn.blizzard.com",
+                "https://level3.ssl.blizzard.com",
+            ),
+            WowClientDownloader.secureCdnServers(servers = servers),
+        )
+    }
+
+    @Test
+    fun secureCdnServers_fallsBackToHostsAndMapsLevel3ToSsl() {
+        assertEquals(
+            listOf(
+                "https://level3.ssl.blizzard.com",
+                "https://us.cdn.blizzard.com",
+            ),
+            WowClientDownloader.secureCdnServers(
+                servers = listOf("http://level3.blizzard.com/?maxhosts=8"),
+                hosts = listOf("level3.blizzard.com", "us.cdn.blizzard.com"),
+            ),
+        )
+    }
+
+    @Test
+    fun defaultCdnServers_prefersMatchingRegionOverUs() {
+        assertEquals(
+            listOf(
+                "https://eu.cdn.blizzard.com",
+                "https://level3.ssl.blizzard.com",
+            ),
+            WowClientDownloader.defaultCdnServers("eu"),
+        )
+    }
+
+    @Test(expected = java.io.IOException::class)
+    fun verifyConfigDigest_rejectsMismatchedDigest() {
+        val data = "build-config-content".toByteArray()
+        WowClientDownloader.verifyConfigDigest("00000000000000000000000000000000", data)
+    }
+
+    @Test
     fun readBuildInfo_returnsNullOnMissingFile() {
         val nonExistent = File(tempFolder.root, "does_not_exist")
         assertNull(WowClientDownloader.readBuildInfo(nonExistent))
     }
 }
-

@@ -1,6 +1,7 @@
 package app.gamenative.ui.screen.wow
 
 import android.content.Context
+import android.os.FileObserver
 import android.util.Base64
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -24,11 +25,14 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import app.gamenative.Crypto
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.onTimeout
+import kotlinx.coroutines.selects.select
 import timber.log.Timber
 import java.io.File
 
@@ -59,7 +63,7 @@ object BattleNetSignIn {
 
     fun writeLoginFile(gameRoot: File, login: Login) {
         try {
-            val file = File(File(gameRoot, WowClientDownloader.FLAVOR_DIR), "login.txt")
+            val file = File(File(gameRoot, WowClientDownloader.FLAVOR_DIR), LOGIN_FILE)
             file.parentFile?.mkdirs()
             file.writeText("${login.email}\n${login.password}\n")
         } catch (e: Exception) {
@@ -71,7 +75,7 @@ object BattleNetSignIn {
     fun removeLoginFile(gameRoot: File) {
         listOf(WowClientDownloader.FLAVOR_DIR, WowClientDownloader.LEGACY_FLAVOR_DIR).forEach { flavorDir ->
             try {
-                val file = File(File(gameRoot, flavorDir), "login.txt")
+                val file = File(File(gameRoot, flavorDir), LOGIN_FILE)
                 if (file.exists()) {
                     file.writeBytes(ByteArray(file.length().coerceAtMost(4096).toInt()))
                     file.delete()
@@ -84,18 +88,45 @@ object BattleNetSignIn {
 
     fun startLoginWatcher(gameRoot: File) {
         CoroutineScope(Dispatchers.IO).launch {
-            val hotfixLog = File(File(gameRoot, WowClientDownloader.FLAVOR_DIR), "Logs/Hotfix.log")
+            val flavorDir = File(gameRoot, WowClientDownloader.FLAVOR_DIR)
+            val loginFile = File(flavorDir, LOGIN_FILE)
+            if (!loginFile.isFile) return@launch
+
+            val hotfixLog = File(flavorDir, "Logs/Hotfix.log")
             hotfixLog.delete()
-            // A fresh install's first boot streams assets and plays the intro cinematic before reaching the login screen.
-            val deadline = System.currentTimeMillis() + 600_000L
-            while (isActive && System.currentTimeMillis() < deadline) {
-                delay(1000L)
-                if (hotfixLog.exists() && hotfixLog.length() > 50_000L) {
-                    removeLoginFile(gameRoot)
-                    return@launch
+
+            val consumed = CompletableDeferred<Unit>()
+
+            @Suppress("DEPRECATION")
+            val observer = object : FileObserver(flavorDir.absolutePath, OPEN or CLOSE_NOWRITE) {
+                private var loginOpened = false
+
+                override fun onEvent(event: Int, path: String?) {
+                    if (path != LOGIN_FILE) return
+                    when {
+                        event and OPEN != 0 -> loginOpened = true
+                        loginOpened && event and CLOSE_NOWRITE != 0 -> consumed.complete(Unit)
+                    }
                 }
             }
-            removeLoginFile(gameRoot)
+
+            observer.startWatching()
+            try {
+                val deadline = System.currentTimeMillis() + LOGIN_FILE_TIMEOUT_MS
+                while (isActive && !consumed.isCompleted && System.currentTimeMillis() < deadline) {
+                    select<Unit> {
+                        consumed.onAwait { }
+                        onTimeout(1000L) {
+                            if (hotfixLog.exists() && hotfixLog.length() > 50_000L) {
+                                consumed.complete(Unit)
+                            }
+                        }
+                    }
+                }
+            } finally {
+                observer.stopWatching()
+                removeLoginFile(gameRoot)
+            }
         }
     }
 
@@ -104,6 +135,8 @@ object BattleNetSignIn {
     private const val PREFS = "battle_net_login"
     private const val KEY_EMAIL = "email"
     private const val KEY_PASSWORD = "password"
+    private const val LOGIN_FILE = "login.txt"
+    private const val LOGIN_FILE_TIMEOUT_MS = 120_000L
 }
 
 @Composable

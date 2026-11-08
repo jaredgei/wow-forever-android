@@ -7,7 +7,7 @@ import urllib.request
 import zlib
 from pathlib import Path
 
-CDN = "http://level3.blizzard.com/tpr/wow"
+CDN = "https://level3.ssl.blizzard.com/tpr/wow"
 INSTALL_DIR = Path(os.environ.get("WOW_DIR", "/Applications/World of Warcraft"))
 PLATFORM_TAGS = {"Windows", "arm64"}
 PRODUCT = "wowf"
@@ -20,7 +20,10 @@ def fetch(kind, key, byte_range=None):
         offset, size = byte_range
         request.add_header("Range", f"bytes={offset}-{offset + size - 1}")
     with urllib.request.urlopen(request, timeout=120) as r:
-        return r.read()
+        data = r.read()
+    if kind == "config" and hashlib.md5(data).hexdigest() != key.lower():
+        raise ValueError(f"checksum mismatch for config {key}")
+    return data
 
 
 def locate_in_archives(archives, wanted):
