@@ -15,6 +15,7 @@ import app.gamenative.ui.screen.wow.WoWLauncherState
 import app.gamenative.ui.screen.wow.WowClientDownloader
 import app.gamenative.ui.screen.wow.fitScreenSizeToWindow
 import app.gamenative.ui.screen.wow.installLocale
+import app.gamenative.wow.install.GameData
 import app.gamenative.wow.install.GameInstaller
 import app.gamenative.wow.install.DownloadSpeed
 import app.gamenative.wow.install.InstallController
@@ -127,12 +128,34 @@ class LauncherController(
     var canConvertToLaunch by mutableStateOf(false)
         private set
 
+    var isClearingData by mutableStateOf(false)
+        private set
+
     private var launchJob: Job? = null
     private var pendingInstallPermission = false
 
     val filesMissing get() = !(files.dataExists && files.buildInfoExists)
-    val canPlay get() = !isLaunching && !isUpdating && !filesMissing && !files.isWrongGame
-    val busy get() = isLaunching || isUpdating
+    val canPlay get() = !busy && !filesMissing && !files.isWrongGame
+    val busy get() = isLaunching || isUpdating || isClearingData
+
+    /** Deletes the world data so the game downloads it again. The caller has checked the game and downloads are stopped. */
+    fun clearGameData() {
+        if (busy || PluviaApp.xEnvironment != null) return
+        isClearingData = true
+        errorMessage = null
+        scope.launch {
+            try {
+                withContext(Dispatchers.IO) { GameData.clear(File(gamePath)) }
+                checkFiles()
+            } catch (e: Exception) {
+                Timber.e(e, "Error clearing game data")
+                if (e.isPermissionDenied()) needsStoragePermission = true
+                errorMessage = "Couldn't clear the game data: ${e.message}"
+            } finally {
+                isClearingData = false
+            }
+        }
+    }
 
     fun checkFiles(): Boolean {
         files = GamePath.status(context, gamePath)

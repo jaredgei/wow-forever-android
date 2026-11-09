@@ -369,7 +369,7 @@ class FullDownloader(
     companion object {
         /** The folder the storage is built in, next to the game's own `Data/data`. */
         const val STAGING = "foreverywhere-download"
-        private const val OLD = "foreverywhere-replaced"
+        const val OLD = "foreverywhere-replaced"
 
         /** Holds the build key of the last full download, next to `.build.info`. */
         const val MARKER = ".foreverywhere-full"

@@ -17,15 +17,18 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import app.gamenative.PluviaApp
 import app.gamenative.ui.screen.wow.GamePath
 import app.gamenative.utils.StorageUtils
 import app.gamenative.wow.install.FullDownloader
+import app.gamenative.wow.install.GameData
 import app.gamenative.wow.install.InstallController
 import app.gamenative.wow.install.InstallRequest
 import app.gamenative.wow.install.InstallUiState
 import app.gamenative.wow.product.GameInstall
 import app.gamenative.wow.product.InstallScanner
 import app.gamenative.wow.ui.components.FwButton
+import app.gamenative.wow.ui.components.FwDialog
 import app.gamenative.wow.ui.components.FwDownloadPanel
 import app.gamenative.wow.ui.components.FwButtonKind
 import app.gamenative.wow.ui.components.FwProgress
@@ -53,6 +56,10 @@ fun GameFilesScreen(launcher: LauncherController, onBack: () -> Unit, onInstall:
         } else {
             launcher.useGameRoot(root.absolutePath)
         }
+    }
+
+    LaunchedEffect(launcher.gamePath) {
+        if (!launcher.isClearingData) withContext(Dispatchers.IO) { runCatching { GameData.finishClearing(File(launcher.gamePath)) } }
     }
 
     FwPage("Game files", onBack) {
@@ -96,7 +103,10 @@ fun GameFilesScreen(launcher: LauncherController, onBack: () -> Unit, onInstall:
             )
         }
 
-        if (!launcher.filesMissing) FullDownloadSection(launcher, install, onOpenOvernight)
+        if (!launcher.filesMissing) {
+            FullDownloadSection(launcher, install, onOpenOvernight)
+            ClearGameDataSection(launcher, install)
+        }
 
         FwSection("Find an existing copy") {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -140,13 +150,52 @@ internal val InstallUiState.fullRequest: InstallRequest?
         else -> null
     }?.takeIf { it.full }
 
+/** Game files, Clear game data: starts the world data over when it's damaged, without deleting the folder by hand. */
+@Composable
+private fun ClearGameDataSection(launcher: LauncherController, state: InstallUiState) {
+    var confirming by remember { mutableStateOf(false) }
+    val downloading = state.fullRequest != null || state is InstallUiState.Running || state is InstallUiState.Paused
+    val gameOpen = PluviaApp.xEnvironment != null
+
+    FwSection("Clear game data") {
+        Text(
+            "If the game still misbehaves after a repair, delete its world data and start over. It downloads again while you play, about 67 GB, starting the next time you press Play. Your settings, addons and login stay.",
+            style = Fw.Secondary,
+        )
+        when {
+            launcher.isClearingData -> Text("Clearing game data…", style = Fw.Text)
+            gameOpen -> Text("Close the game to clear its data.", style = Fw.Secondary)
+            downloading -> Text("Finish or cancel the download to clear game data.", style = Fw.Secondary)
+        }
+        FwButton(
+            "Clear game data",
+            { confirming = true },
+            kind = FwButtonKind.Ghost,
+            enabled = !launcher.busy && !downloading && !gameOpen,
+        )
+    }
+
+    if (confirming) {
+        FwDialog(
+            title = "Clear game data?",
+            message = "This deletes the world data in ${launcher.gamePath}, for every WoW version in that folder. Your settings, addons and login stay. The game downloads the data again while you play, so the first sessions will load slowly.",
+            confirm = "Clear data",
+            onConfirm = {
+                confirming = false
+                launcher.clearGameData()
+            },
+            onDismiss = { confirming = false },
+        )
+    }
+}
+
 /** Game files, Download all game data: everything the game would otherwise stream, with Overnight mode for long runs. */
 @Composable
 private fun FullDownloadSection(launcher: LauncherController, state: InstallUiState, onOpenOvernight: () -> Unit) {
     val context = LocalContext.current
     val product = launcher.files.product ?: return
     val root = File(launcher.gamePath)
-    val complete = remember(launcher.gamePath, state) { FullDownloader.isComplete(root, product) }
+    val complete = remember(launcher.gamePath, state, launcher.isClearingData) { FullDownloader.isComplete(root, product) }
     val otherDownload = state.fullRequest == null && (state is InstallUiState.Running || state is InstallUiState.Paused)
     val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     LaunchedEffect(state) {

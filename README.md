@@ -156,6 +156,7 @@ Because the game needs the password in plain text for those few seconds, any app
 
 - **Game files** shows where the game is installed and its version. **Install or repair** checks every file and downloads only what's missing or damaged. Once WoW Forever launches, this screen also offers to switch a beta install to the launch version, reusing the game data you already have.
 - **Download all game data** fetches everything the game would otherwise download while you play, about 50 GB, so it never waits on the network for world data. It suits slow connections and can run overnight: start it, open **Overnight mode**, and leave the device on its charger. Overnight mode keeps the app on screen at the lowest brightness, on a black background with the progress moving every minute, so nothing burns in. It also stops Android 15 and later from pausing the download after six hours in the background. You can keep playing while it runs; the new data takes over the next time the game is closed.
+- **Clear game data** deletes the world data so the game downloads it again the next time you press **Play**, about 67 GB. Your settings, addons and login stay.
 - **Settings** shows the app version and checks for app updates. It also holds:
   - **Game version** and **Region** (Americas, Europe, Korea or Taiwan).
   - **Addon sources**, showing which addon sites this build can use.
