@@ -273,7 +273,7 @@ private fun TroubleshootingSection(launcher: LauncherController, onOpenControlle
         )
         FwButton("Controller test", onOpenControllerTest, kind = FwButtonKind.Ghost)
         Text(
-            "For other problems, turn on debug logging, make the problem happen again, then share a debug report on your GitHub issue. " +
+            "For other problems, turn on debug logging, make the problem happen again, then share a debug report on your GitHub issue. The game won't start by itself while logging is on, so opening the app doesn't replace the game's logs. " +
                 "The report holds your device details, settings and logs. Email addresses and your saved login are removed from it.",
             style = Fw.Secondary,
         )

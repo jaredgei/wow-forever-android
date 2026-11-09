@@ -1,6 +1,7 @@
 package app.gamenative.wow.ui
 
 import android.content.Context
+import android.os.SystemClock
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -13,10 +14,12 @@ import app.gamenative.ui.screen.wow.GpuProfile
 import app.gamenative.ui.screen.wow.StorageAccessDeniedException
 import app.gamenative.ui.screen.wow.WoWLauncherState
 import app.gamenative.ui.screen.wow.WowClientDownloader
+import app.gamenative.ui.screen.wow.configTextLocale
 import app.gamenative.ui.screen.wow.fitScreenSizeToWindow
 import app.gamenative.ui.screen.wow.installLocale
 import app.gamenative.wow.install.GameData
 import app.gamenative.wow.install.GameInstaller
+import app.gamenative.wow.debug.DebugLog
 import app.gamenative.wow.install.DownloadSpeed
 import app.gamenative.wow.install.InstallController
 import app.gamenative.wow.install.InstallProgress
@@ -47,6 +50,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
+import app.gamenative.wow.product.DeviceClock
 
 /**
  * Launch, game-update and app-update state for the active install. The logic is moved from upstream's
@@ -111,6 +115,9 @@ class LauncherController(
      * The game's graphics stack crashes the whole app there, so ask before launching.
      */
     var unsupportedDeviceWarning by mutableStateOf(false)
+
+    /** Set when Play is pressed on a device on for so long that the game's clock stops: how many days it's been on. */
+    var restartWarningDays by mutableStateOf<Long?>(null)
     private val supportedGpu = runCatching { com.winlator.core.GPUInformation.isAdrenoGPU(context) }.getOrDefault(true)
 
     /** The switch to the launch version is running; [convertProgress] and [convertSpeed] follow it. */
@@ -256,11 +263,15 @@ class LauncherController(
         scope.launch { fetchAppUpdate() }
     }
 
-    fun launchGame(confirmedUnsupported: Boolean = false) {
+    fun launchGame(confirmedUnsupported: Boolean = false, confirmedRestart: Boolean = false) {
         val product = files.product
         if (isLaunching || product == null) return
         if (!supportedGpu && !confirmedUnsupported) {
             unsupportedDeviceWarning = true
+            return
+        }
+        if (!confirmedRestart && DeviceClock.needsRestart(SystemClock.elapsedRealtime())) {
+            restartWarningDays = DeviceClock.days(SystemClock.elapsedRealtime())
             return
         }
         if (!files.hasStorageAccess) {
@@ -478,7 +489,7 @@ class LauncherController(
                 fetchVersionStatus()
                 val update = updateJob.await()
                 WoWLauncherState.shouldAutoLaunch = false
-                if (shouldAutoLaunch(versionStatus?.isOutdated == true, update != null, canConvertToLaunch, supportedGpu)) {
+                if (shouldAutoLaunch(versionStatus?.isOutdated == true, update != null, canConvertToLaunch, supportedGpu, DebugLog.isEnabled(context))) {
                     launchGame()
                 } else {
                     PluviaApp.events.emit(AndroidEvent.ClearBootingSplash)
@@ -504,7 +515,13 @@ class LauncherController(
         "Installed: ${files.product?.displayName ?: "none"} ${versionStatus?.localVersion.orEmpty()}",
         "Live version: ${versionStatus?.remoteVersion ?: "unknown"}",
         "Saved login: ${if (hasSavedLogin) "yes" else "no"}",
+        "Game text language: ${gameTextLanguage() ?: "not set"}",
+        "Time since boot: ${DeviceClock.days(SystemClock.elapsedRealtime())} days",
     )
+
+    private fun gameTextLanguage(): String? =
+        gameFolder()?.let { File(it, "WTF/Config.wtf") }?.takeIf { it.isFile }
+            ?.let { runCatching { configTextLocale(it.readLines()) }.getOrNull() }
 
     /** The product folder holding the game's own Logs and Errors. */
     fun gameFolder(): File? = files.product?.let { File(gamePath, it.flavorDir) }
@@ -522,5 +539,5 @@ class LauncherController(
  * Whether the app starts the game by itself on opening: not when the game or the app needs an update,
  * when a beta install should switch to WoW Forever first, or on a device the game can't run on.
  */
-internal fun shouldAutoLaunch(gameOutdated: Boolean, appUpdate: Boolean, switchToLaunch: Boolean, supportedGpu: Boolean): Boolean =
-    !gameOutdated && !appUpdate && !switchToLaunch && supportedGpu
+internal fun shouldAutoLaunch(gameOutdated: Boolean, appUpdate: Boolean, switchToLaunch: Boolean, supportedGpu: Boolean, debugLogging: Boolean = false): Boolean =
+    !gameOutdated && !appUpdate && !switchToLaunch && supportedGpu && !debugLogging

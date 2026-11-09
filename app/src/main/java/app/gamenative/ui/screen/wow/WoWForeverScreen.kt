@@ -1077,11 +1077,25 @@ private val NARRATOR_KEYS = setOf("showScreenNarrationDialog", "accessibilityScr
 /** Retail only gets what it needs to start and use a controller; the rest is a Classic-era handheld preset. */
 private val RETAIL_DEFAULTS = setOf("portal", "agentUID", "gxApi", "textLocale", "audioLocale", "GamePadEnable", "InputDeviceInterfaceStyle") + NARRATOR_KEYS
 
+/**
+ * The text language to give the game for [locale]. With Italian text, client 1.60.1.70862 stops at start-up with
+ * ERROR #134 "Failed to download required build info asset" (issue #22), so it gets English. Italian audio works.
+ */
+internal fun gameTextLocale(locale: String) = if (locale.equals(BROKEN_TEXT_LOCALE, ignoreCase = true)) "enUS" else locale
+
+private const val BROKEN_TEXT_LOCALE = "itIT"
+private const val TEXT_LOCALE = "SET textLocale "
+
+/** The text language set in Config.wtf [lines], or null if there is none. */
+internal fun configTextLocale(lines: List<String>): String? =
+    lines.lastOrNull { it.trim().startsWith(TEXT_LOCALE, ignoreCase = true) }
+        ?.substringAfter('"', "")?.substringBefore('"')?.takeIf { it.isNotEmpty() }
+
 private fun configDefaults(product: WowProduct, locale: String, portal: String) = linkedMapOf(
     "portal" to "\"$portal\"",
     "agentUID" to "\"${product.code}\"",
     "gxApi" to "\"D3D11\"",
-    "textLocale" to "\"$locale\"",
+    "textLocale" to "\"${gameTextLocale(locale)}\"",
     "audioLocale" to "\"$locale\"",
     "gxMaximize" to "\"1\"",
     "graphicsQuality" to "\"0\"",
@@ -1165,18 +1179,21 @@ internal fun buildConfigWtf(
     val agentLine = "SET agentUID \"${product.code}\""
     val wrongAgent = existing.any { it.startsWith("SET agentUID ", ignoreCase = true) && it != agentLine }
     val missingNarrator = NARRATOR_KEYS.filter { key -> existing.none { it.startsWith("SET $key ", ignoreCase = true) } }
-    if (existing.any { it == GX_API_LINE } && staleResolutionKeys.isEmpty() && !missingPortal && !wrongPortal && !wrongAgent && missingNarrator.isEmpty() && !staleAccount) return null
+    val brokenText = configTextLocale(existing)?.equals(BROKEN_TEXT_LOCALE, ignoreCase = true) == true
+    if (existing.any { it == GX_API_LINE } && staleResolutionKeys.isEmpty() && !missingPortal && !wrongPortal && !wrongAgent && missingNarrator.isEmpty() && !staleAccount && !brokenText) return null
     return existing.filterNot { line ->
         line.startsWith("SET gxApi ", ignoreCase = true) ||
             (wrongPortal && line.startsWith("SET portal ", ignoreCase = true)) ||
             (wrongAgent && line.startsWith("SET agentUID ", ignoreCase = true)) ||
             (staleAccount && line.startsWith(ACCOUNT_LIST, ignoreCase = true)) ||
+            (brokenText && line.trim().startsWith(TEXT_LOCALE, ignoreCase = true)) ||
             staleResolutionKeys.any { line.startsWith("SET $it ", ignoreCase = true) }
     } + listOfNotNull(
         GX_API_LINE,
         portalLine.takeIf { missingPortal || wrongPortal },
         agentLine.takeIf { wrongAgent },
         accountLine.takeIf { staleAccount },
+        "$TEXT_LOCALE\"${gameTextLocale(BROKEN_TEXT_LOCALE)}\"".takeIf { brokenText },
     ) + staleResolutionKeys.map { "SET $it \"$screenSize\"" } + missingNarrator.map { "SET $it \"0\"" }
 }
 

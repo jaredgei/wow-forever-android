@@ -46,7 +46,7 @@ object GameData {
      * Deletes [path] and what's under it. A link is removed without touching what it points to. Never use
      * [File.deleteRecursively] on game or Wine folders: it walks through links and can empty shared storage.
      */
-    private fun deleteNoFollow(path: Path) {
+    fun deleteNoFollow(path: Path) {
         Files.walkFileTree(
             path,
             object : SimpleFileVisitor<Path>() {

@@ -18,4 +18,10 @@ class StartupDecisionTest {
     fun aBetaInstallWaitingForTheSwitchNeverAutoLaunches() {
         assertFalse(shouldAutoLaunch(gameOutdated = false, appUpdate = false, switchToLaunch = true, supportedGpu = true))
     }
+
+    @Test
+    fun debugLoggingKeepsTheGameFromStartingByItself() {
+        assertFalse(shouldAutoLaunch(gameOutdated = false, appUpdate = false, switchToLaunch = false, supportedGpu = true, debugLogging = true))
+        assertTrue(shouldAutoLaunch(gameOutdated = false, appUpdate = false, switchToLaunch = false, supportedGpu = true, debugLogging = false))
+    }
 }

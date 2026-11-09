@@ -190,6 +190,8 @@ These versions are experimental and get little support. They may run poorly or n
 | *CAS system was unable to initialize* | The game folder is missing `.build.info`. Run **Game files → Install or repair**, or copy the file again from your PC install. |
 | *No realms available* | The game is out of date. Open the app with Wi-Fi on and accept the update. |
 | The game is slow the first time, or text and characters are missing | It's downloading its world data in the background. Give it time on Wi-Fi, or use **Game files → Download all game data** on a slow connection. |
+| The login buttons are missing, or the game looks frozen and nothing animates | Restart your device. The game's clock stops after about 50 days without a restart, and the app warns you when you press **Play**. |
+| *ERROR #134: Failed to download required build info asset* | The game can't start with Italian text. The app now switches the text to English and keeps Italian audio, so update the app. |
 | The keyboard doesn't appear in the game | Force-stop Gboard under **Settings → Apps → Gboard** and open the keyboard again. |
 | The app returns to the home screen after "Starting World of Warcraft" | Check the files in the game's `Errors` folder (`_forever_/Errors` or `_classic_beta_/Errors`). |
 | "This device can't run the game" | The device has no Adreno GPU. The game needs a Snapdragon chip. |
@@ -202,7 +204,7 @@ These versions are experimental and get little support. They may run poorly or n
 
 ### Reporting a problem
 
-Under **Settings → Troubleshooting**, turn on debug logging, make the problem happen again, then use **Share debug report** and attach the zip to your [GitHub issue](https://github.com/YoruDev-Ryland/WoWForeverywhere/issues). The report holds your device details, the app's settings and the app's and game's logs. Email addresses and your saved login are removed from it. Turn debug logging off again afterwards.
+Under **Settings → Troubleshooting**, turn on debug logging, make the problem happen again, then use **Share debug report** and attach the zip to your [GitHub issue](https://github.com/YoruDev-Ryland/WoWForeverywhere/issues). The report holds your device details, the app's settings and the app's and game's logs. Email addresses and your saved login are removed from it. Turn debug logging off again afterwards. While logging is on, the game doesn't start by itself when you open the app, so its logs aren't replaced before you share them.
 
 ## Building from source
 

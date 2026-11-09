@@ -215,6 +215,19 @@ fun ForeverywhereApp(onLaunch: (appId: String) -> Unit) {
                 dismiss = "Later",
             )
         }
+        launcher.restartWarningDays?.let { days ->
+            FwDialog(
+                title = "Restart your device first",
+                message = "This device has been on for $days days. After about 50 days without a restart, the game's clock stops: the login buttons don't appear and the world looks frozen. Restart your device, then press Play.",
+                confirm = "Play anyway",
+                onConfirm = {
+                    launcher.restartWarningDays = null
+                    launcher.launchGame(confirmedUnsupported = true, confirmedRestart = true)
+                },
+                onDismiss = { launcher.restartWarningDays = null },
+                dismiss = "Not now",
+            )
+        }
         if (launcher.unsupportedDeviceWarning) {
             FwDialog(
                 title = "This device can't run the game",

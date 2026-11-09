@@ -8,6 +8,7 @@ import android.util.Log;
 import app.gamenative.R;
 import app.gamenative.utils.downloader.ContainerFilesDownloaderKt;
 import app.gamenative.utils.downloader.ProgressCallback;
+import app.gamenative.wow.install.ContainerRepair;
 import com.winlator.box86_64.Box86_64Preset;
 import com.winlator.contents.ContentsManager;
 import com.winlator.core.Callback;
@@ -24,6 +25,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.concurrent.Executors;
@@ -118,7 +120,15 @@ public class ContainerManager {
             data.put("id", containerId);
 
             File containerDir = new File(homeDir, ImageFs.USER+"-"+containerId);
-            if (!containerDir.mkdirs()) return null;
+            // A folder without a loaded container is setup that never finished. It would block this forever.
+            if (!hasContainer(containerId) && (containerDir.exists() || FileUtils.isSymlink(containerDir))) {
+                Log.w("ContainerManager", "Replacing container folder that can't be loaded: " + containerId);
+                ContainerRepair.INSTANCE.discard(containerDir);
+            }
+            if (!containerDir.mkdirs()) {
+                Log.w("ContainerManager", "Couldn't create container folder: " + containerDir);
+                return null;
+            }
 
             Container container = new Container(containerId);
             container.setRootDir(containerDir);
@@ -139,7 +149,7 @@ public class ContainerManager {
             containers.add(container);
             return container;
         }
-        catch (JSONException e) {
+        catch (JSONException | IOException e) {
             Log.e("ContainerManager", "Failed to create container: " + e);
         }
         return null;

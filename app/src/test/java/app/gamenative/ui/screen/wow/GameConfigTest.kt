@@ -43,6 +43,31 @@ class GameConfigTest {
     }
 
     @Test
+    fun newItalianConfigGetsEnglishTextAndKeepsItalianAudio() {
+        val lines = buildConfigWtf(null, WowProduct.FOREVER, "1920x1080", locale = "itIT")!!
+        assertTrue("SET textLocale \"enUS\"" in lines)
+        assertTrue("SET audioLocale \"itIT\"" in lines)
+    }
+
+    @Test
+    fun existingItalianTextIsSwitchedToEnglishOnce() {
+        val first = buildConfigWtf(null, WowProduct.FOREVER, "1920x1080")!!
+        val italian = first.map { if (it.startsWith("SET textLocale")) "SET textLocale \"itIT\"" else if (it.startsWith("SET audioLocale")) "SET audioLocale \"itIT\"" else it }
+        val fixed = buildConfigWtf(italian, WowProduct.FOREVER, "1920x1080")!!
+        assertEquals(1, fixed.count { it.startsWith("SET textLocale") })
+        assertEquals("enUS", configTextLocale(fixed))
+        assertTrue("SET audioLocale \"itIT\"" in fixed)
+        assertEquals(null, buildConfigWtf(fixed, WowProduct.FOREVER, "1920x1080"))
+    }
+
+    @Test
+    fun otherTextLanguagesAreLeftAlone() {
+        val first = buildConfigWtf(null, WowProduct.FOREVER, "1920x1080", locale = "deDE")!!
+        assertEquals("deDE", configTextLocale(first))
+        assertEquals(null, buildConfigWtf(first, WowProduct.FOREVER, "1920x1080"))
+    }
+
+    @Test
     fun installLocaleReadsBuildInfoTags() {
         val root = java.nio.file.Files.createTempDirectory("wow").toFile()
         assertEquals("enUS", installLocale(root, WowProduct.FOREVER))
