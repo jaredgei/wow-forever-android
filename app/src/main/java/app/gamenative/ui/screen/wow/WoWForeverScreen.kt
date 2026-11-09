@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Refresh
@@ -102,6 +103,8 @@ fun WoWForeverScreen(
     var region by remember(gamePath, files) { mutableStateOf(GameRegion.current(context, gamePath)) }
     var resolution by remember { mutableStateOf(RenderResolution.current(context, gpu.screenSize)) }
     var showLoginDialog by remember { mutableStateOf(false) }
+    var showLockDialog by remember { mutableStateOf(false) }
+    var showVerifyScreen by remember { mutableStateOf(false) }
     var statusText by remember { mutableStateOf(READY_STATUS) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showStoragePermissionDialog by remember { mutableStateOf(false) }
@@ -239,6 +242,9 @@ fun WoWForeverScreen(
         isLaunching = false
         statusText = READY_STATUS
         BattleNetSignIn.removeLoginFile(File(gamePath))
+        if (!showVerifyScreen && BattleNetLoginLock.isLocked(context, File(gamePath))) {
+            showLockDialog = true
+        }
         if (versionStatus == null && !WoWLauncherState.shouldAutoLaunch) {
             checkVersionStatus()
         }
@@ -371,6 +377,10 @@ fun WoWForeverScreen(
                 WoWLauncherState.shouldAutoLaunch = false
                 if (versionStatus?.isOutdated == true || update != null) {
                     PluviaApp.events.emit(AndroidEvent.ClearBootingSplash)
+                } else if (BattleNetLoginLock.isLocked(context, File(gamePath))) {
+                    // Signing in again before verifying only hits the same lock.
+                    PluviaApp.events.emit(AndroidEvent.ClearBootingSplash)
+                    showLockDialog = true
                 } else {
                     launchGame()
                 }
@@ -662,6 +672,7 @@ fun WoWForeverScreen(
                         ) {
                             showLoginDialog = true
                         }
+                        LinkButton("Verify Login", Icons.Default.Lock) { showLockDialog = true }
                         if (hasSavedLogin) {
                             LinkButton("Forget Saved Login", Icons.Default.Delete) {
                                 BattleNetSignIn.forget(context)
@@ -684,6 +695,33 @@ fun WoWForeverScreen(
                 showLoginDialog = false
                 BattleNetSignIn.save(context, login)
                 hasSavedLogin = true
+            },
+        )
+    }
+
+    if (showLockDialog) {
+        BattleNetLockDialog(
+            onVerify = {
+                showLockDialog = false
+                showVerifyScreen = true
+            },
+            onDismiss = {
+                showLockDialog = false
+                BattleNetLoginLock.markHandled(context, File(gamePath))
+            },
+        )
+    }
+
+    if (showVerifyScreen) {
+        BattleNetVerifyScreen(
+            onDone = {
+                showVerifyScreen = false
+                BattleNetLoginLock.markHandled(context, File(gamePath))
+                if (canPlay) launchGame()
+            },
+            onClose = {
+                showVerifyScreen = false
+                BattleNetLoginLock.markHandled(context, File(gamePath))
             },
         )
     }
@@ -1174,6 +1212,7 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, scr
         BattleNetSignIn.writeLoginFile(gameRoot, login)
         BattleNetSignIn.startLoginWatcher(gameRoot)
     }
+    BattleNetLoginLock.startWatcher(gameRoot)
     if (!arm64Exe.exists()) {
         try {
             WowClientDownloader.download(gameRoot, onStatus)

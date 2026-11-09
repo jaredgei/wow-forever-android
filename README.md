@@ -116,6 +116,7 @@ Whenever Blizzard patches the game:
 | Symptom | Fix |
 | :--- | :--- |
 | *CAS system was unable to initialize: no active install info entries* | `.build.info` or `_forever_/.flavor.info` is missing on the device. |
+| *You have been disconnected (BLZ51914400)* right after signing in, plus a "suspicious login" email from Blizzard | Blizzard's account security blocked a sign-in from a device or network it doesn't recognise (status 14400 in `_forever_/Logs/Connection.log`). The launcher detects this and offers **Verify Login**: turn off any VPN, sign in to Battle.net on the page it opens (enter the emailed code if asked), then tap **Done & Play**. You can also open it any time from **Verify Login** on the setup screen. |
 | *No realms available* / no servers listed | The device client is out of date. Tap **Update** on the launcher setup screen, or restart the app with Wi-Fi enabled. |
 | Keyboard doesn't appear | Force-stop Gboard (Settings → Apps → Gboard → Force stop) and open **Keyboard** again. It can get stuck on the second screen. |
 | Returns to the launcher after "Launching Game…" | Check the files under `_forever_/Errors/` on the device. |
