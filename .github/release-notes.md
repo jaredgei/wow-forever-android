@@ -1,12 +1,8 @@
-Frame generation can't stop the game from starting, and more help for blocked logins.
+You can now start the game's world data over without deleting folders by hand.
 
-## Fixed
+## New
 
-- **A wrong Lossless.dll no longer closes the game.** If the Lossless.dll you added doesn't have the frame generation shaders, the game used to drop straight back to the home screen. Now the game starts without frame generation and tells you, Settings flags the file, and choosing a file like that is turned down with a note on where to get the right one: `Steam/steamapps/common/Lossless Scaling` from a current Steam install.
-
-## Changed
-
-- **Fix a blocked login** now starts with the step that got one player past BLZ51914400: turn off any phone setting that uses Wi-Fi and mobile data together, such as *Optimize network for speed* in **Settings → System → Network**.
+- **Clear game data** in **Game files** deletes the world data. The game downloads it again as you play, starting the next time you press **Play**: about 67 GB, so your first sessions will load slowly. Your settings, addons and saved login stay. Try it if the game still misbehaves after **Install or repair**, which doesn't check the world data.
 
 ## Install
 
