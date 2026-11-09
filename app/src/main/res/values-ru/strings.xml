@@ -1,7 +1,7 @@
 ﻿<resources>
     <string name="add">Добавить</string>
     <string name="adjust_size">Отрегулировать размер</string>
-    <string name="app_name">GameNative</string>
+    <string name="app_name">WoW Foreverywhere</string>
     <string name="appearance">Внешний вид</string>
     <string name="audio_driver">Аудиодрайвер</string>
     <string name="pulseaudio_low_latency">Режим низкой задержки PulseAudio</string>
