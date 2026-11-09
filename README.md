@@ -53,6 +53,7 @@ The game runs as Blizzard's own Windows ARM64 client under Wine, with DXVK and a
 | :--- | :--- | :--- |
 | AYN Thor | Snapdragon 8 Gen 2 | Reaches the game world with controller support |
 | Retroid Pocket 6 | Snapdragon 8 Gen 2 | Reported working |
+| Retroid Pocket G2 | Snapdragon G2 Gen 2 | Reported working at 720p, graphics quality 4 |
 | AYN Odin 2 / Odin 2 Mini | Snapdragon 8 Gen 2 | Expected to work |
 | AYN Odin 3 / Odin Portal | Snapdragon 8 Elite | Supported through the bundled Adreno 8xx driver |
 | Xiaomi tablet (model 25097RP43G) | Snapdragon 8s Gen 4 | Reported working |
