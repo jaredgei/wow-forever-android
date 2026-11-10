@@ -50,6 +50,7 @@ import app.gamenative.utils.renderReleaseNotes
 import app.gamenative.wow.product.WowProduct
 import app.gamenative.utils.LsfgVkManager
 import app.gamenative.wow.FrameGeneration
+import app.gamenative.wow.product.GameRegion
 import app.gamenative.wow.product.GameRegions
 import app.gamenative.wow.product.RenderSize
 import app.gamenative.wow.product.RenderSizes
@@ -1175,7 +1176,10 @@ internal fun buildConfigWtf(
     // Once the player has picked a region ([forcePortal]) the portal follows it; before that a hand-edited one stays.
     val portalLine = "SET portal \"$portal\""
     val missingPortal = existing.none { it.startsWith("SET portal ", ignoreCase = true) }
-    val wrongPortal = forcePortal && existing.any { it.startsWith("SET portal ", ignoreCase = true) && it != portalLine }
+    // A "TW" portal is a login server that doesn't exist (Taiwan uses KR), so it's replaced even if hand-edited.
+    val deadPortal = existing.any { it.trim().equals(DEAD_PORTAL_LINE, ignoreCase = true) }
+    val newPortalLine = if (forcePortal) portalLine else "SET portal \"${GameRegion.TW.portal}\""
+    val wrongPortal = (forcePortal || deadPortal) && existing.any { it.startsWith("SET portal ", ignoreCase = true) && it != newPortalLine }
     val agentLine = "SET agentUID \"${product.code}\""
     val wrongAgent = existing.any { it.startsWith("SET agentUID ", ignoreCase = true) && it != agentLine }
     val missingNarrator = NARRATOR_KEYS.filter { key -> existing.none { it.startsWith("SET $key ", ignoreCase = true) } }
@@ -1190,7 +1194,8 @@ internal fun buildConfigWtf(
             staleResolutionKeys.any { line.startsWith("SET $it ", ignoreCase = true) }
     } + listOfNotNull(
         GX_API_LINE,
-        portalLine.takeIf { missingPortal || wrongPortal },
+        portalLine.takeIf { missingPortal },
+        newPortalLine.takeIf { wrongPortal },
         agentLine.takeIf { wrongAgent },
         accountLine.takeIf { staleAccount },
         "$TEXT_LOCALE\"${gameTextLocale(BROKEN_TEXT_LOCALE)}\"".takeIf { brokenText },
@@ -1198,6 +1203,7 @@ internal fun buildConfigWtf(
 }
 
 private const val ACCOUNT_LIST = "SET accountList "
+private const val DEAD_PORTAL_LINE = "SET portal \"TW\""
 
 /**
  * The game's account list ([existing], e.g. `SET accountList "WoW1|!WoW2|"`) with [account] marked by `!`
@@ -1222,7 +1228,7 @@ internal fun installLocale(root: File, product: WowProduct): String =
 internal fun installPortal(root: File, product: WowProduct): String {
     if (product == WowProduct.BETA) return product.portal
     val branch = app.gamenative.wow.product.BuildInfo.read(root)?.active(product)?.get("Branch")
-    return GameRegions.chosen?.portal ?: branch?.takeIf { it.length == 2 }?.uppercase() ?: product.portal
+    return GameRegions.chosen?.portal ?: GameRegion.fromCode(branch)?.portal ?: branch?.takeIf { it.length == 2 }?.uppercase() ?: product.portal
 }
 
 private val RESOLUTION_KEYS = listOf("gxFullscreenResolution", "gxWindowedResolution")

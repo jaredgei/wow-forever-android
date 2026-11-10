@@ -100,6 +100,34 @@ class GameConfigTest {
     }
 
     @Test
+    fun taiwanInstallUsesTheKoreanPortal() {
+        val root = java.nio.file.Files.createTempDirectory("wow").toFile()
+        java.io.File(root, ".build.info").writeText("Branch!STRING:0|Active!DEC:1|Product!STRING:0\ntw|1|wowf\n")
+        assertEquals("KR", installPortal(root, WowProduct.FOREVER))
+        try {
+            app.gamenative.wow.product.GameRegions.chosen = app.gamenative.wow.product.GameRegion.TW
+            assertEquals("KR", installPortal(root, WowProduct.FOREVER))
+        } finally {
+            app.gamenative.wow.product.GameRegions.chosen = null
+        }
+    }
+
+    @Test
+    fun deadTaiwanPortalIsReplacedWithKorea() {
+        val existing = listOf(
+            "SET gxApi \"D3D11\"", "SET portal \"TW\"", "SET agentUID \"wowf\"", "SET gxFullscreenResolution \"1920x1080\"",
+            "SET gxWindowedResolution \"1920x1080\"", "SET showScreenNarrationDialog \"0\"", "SET accessibilityScreenNarrationEnabled \"0\"",
+        )
+        // Even with no region picked, so a config written by an older version gets fixed.
+        val fixed = buildConfigWtf(existing, WowProduct.FOREVER, "1920x1080", portal = "KR")!!
+        assertTrue("SET portal \"KR\"" in fixed)
+        assertTrue(fixed.none { it.equals("SET portal \"TW\"", ignoreCase = true) })
+        assertEquals(1, fixed.count { it.startsWith("SET portal ") })
+        assertNull(buildConfigWtf(fixed, WowProduct.FOREVER, "1920x1080", portal = "KR"))
+        assertNull(buildConfigWtf(fixed, WowProduct.FOREVER, "1920x1080", portal = "KR", forcePortal = true))
+    }
+
+    @Test
     fun forcedPortalReplacesAnExistingOne() {
         val existing = listOf(
             "SET gxApi \"D3D11\"", "SET portal \"US\"", "SET agentUID \"wowf\"", "SET gxFullscreenResolution \"1920x1080\"",

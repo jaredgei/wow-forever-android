@@ -27,4 +27,11 @@ class GameRegionTest {
         GameRegions.chosen = GameRegion.KR
         assertEquals(GameRegion.KR, GameRegions.effective("eu"))
     }
+
+    @Test
+    fun taiwanLogsInThroughTheKoreanPortal() {
+        assertEquals("KR", GameRegion.TW.portal)
+        assertEquals("tw", GameRegion.TW.code)
+        assertEquals("US", GameRegion.US.portal)
+    }
 }

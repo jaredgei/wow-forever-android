@@ -2,15 +2,17 @@ package app.gamenative.wow.product
 
 import android.content.Context
 
-/** Battle.net regions the game can play in. The code is the `.build.info` Branch; the portal is it in capitals. */
-enum class GameRegion(val code: String, val label: String) {
+/**
+ * Battle.net regions the game can play in. The code is the `.build.info` Branch (which also picks the CDN and
+ * files); the portal is the Config.wtf login server. Taiwan logs in through the Korean portal: there is no
+ * tw.actual.battle.net, so a "TW" portal fails with BLZ51901016 (#35).
+ */
+enum class GameRegion(val code: String, val label: String, val portal: String = code.uppercase()) {
     US("us", "Americas"),
     EU("eu", "Europe"),
     KR("kr", "Korea"),
-    TW("tw", "Taiwan"),
+    TW("tw", "Taiwan", portal = "KR"),
     ;
-
-    val portal get() = code.uppercase()
 
     companion object {
         fun fromCode(code: String?): GameRegion? = entries.firstOrNull { it.code.equals(code, ignoreCase = true) }
