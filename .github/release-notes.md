@@ -1,9 +1,9 @@
-Game updates follow your region.
+Back button fix for RedMagic phones, and Taiwan logins.
 
 ## Fixed
 
-- **Players outside the Americas were told to update to a build their realms didn't have yet.** Blizzard patches each region on its own day. The app always checked the Americas version, so on NA patch day players in Europe and other regions updated early and then found no realms. It now checks and installs the build for the region you play in (Settings → Region).
-- **Already updated too early?** Open the app after updating to this version. It offers your region's build, and **Update** switches back in under a minute. You don't need to reinstall the game.
+- **On RedMagic phones the back button didn't open the side menu.** These phones send each back press twice, so the menu opened and closed again straight away, or only showed while the button was held. One press now opens it once. If an edge swipe still does nothing on your phone, use the back button; RedMagic's game mode can take that swipe for itself.
+- **Taiwan accounts couldn't log in (BLZ51901016).** Blizzard has no separate Taiwan login server; Taiwan realms sign in through Korea. With your region set to Taiwan, the app now uses the Korean server, and existing installs are fixed the next time you launch.
 
 ## Install
 
