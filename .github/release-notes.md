@@ -1,8 +1,9 @@
-The app shows its own name in every language.
+Game updates follow your region.
 
 ## Fixed
 
-- **The app was called "GameNative" on phones set to some languages,** including German, French, Italian, Spanish and Russian. It now shows as WoW Foreverywhere everywhere. Thanks to @dev-matil for the fix.
+- **Players outside the Americas were told to update to a build their realms didn't have yet.** Blizzard patches each region on its own day. The app always checked the Americas version, so on NA patch day players in Europe and other regions updated early and then found no realms. It now checks and installs the build for the region you play in (Settings → Region).
+- **Already updated too early?** Open the app after updating to this version. It offers your region's build, and **Update** switches back in under a minute. You don't need to reinstall the game.
 
 ## Install
 
