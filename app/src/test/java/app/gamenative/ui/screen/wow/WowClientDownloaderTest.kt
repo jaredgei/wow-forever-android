@@ -90,5 +90,23 @@ class WowClientDownloaderTest {
         val nonExistent = File(tempFolder.root, "does_not_exist")
         assertNull(WowClientDownloader.readBuildInfo(nonExistent))
     }
-}
 
+    private val versions = listOf(
+        mapOf("Region" to "us", "VersionsName" to "1.60.1.70888"),
+        mapOf("Region" to "eu", "VersionsName" to "1.60.1.70862"),
+        mapOf("Region" to "tw", "VersionsName" to "1.60.1.70862"),
+    )
+
+    @Test
+    fun regionRow_picksThePlayersRegionNotTheFirstRow() {
+        assertEquals("1.60.1.70862", WowClientDownloader.regionRow(versions, "Region", "eu")?.get("VersionsName"))
+        assertEquals("1.60.1.70862", WowClientDownloader.regionRow(versions, "Region", "TW")?.get("VersionsName"))
+        assertEquals("1.60.1.70888", WowClientDownloader.regionRow(versions, "Region", "us")?.get("VersionsName"))
+    }
+
+    @Test
+    fun regionRow_fallsBackToTheFirstRowForAnUnlistedRegion() {
+        assertEquals("1.60.1.70888", WowClientDownloader.regionRow(versions, "Region", "kr")?.get("VersionsName"))
+        assertNull(WowClientDownloader.regionRow(emptyList(), "Region", "eu"))
+    }
+}
