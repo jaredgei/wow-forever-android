@@ -1,5 +1,6 @@
 package app.gamenative.ui.component
 
+import android.os.SystemClock
 import android.view.KeyEvent
 import timber.log.Timber
 import androidx.activity.compose.BackHandler
@@ -100,6 +101,7 @@ import app.gamenative.ui.data.PerformanceHudSize
 import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.ui.util.adaptivePanelWidth
 import app.gamenative.utils.MathUtils.normalizedProgress
+import app.gamenative.wow.ui.BackPressGuard
 import com.winlator.container.Container
 import com.winlator.renderer.GLRenderer
 import com.winlator.renderer.VulkanRenderer
@@ -481,7 +483,7 @@ fun QuickMenu(
     }
 
     BackHandler(enabled = isVisible) {
-        onDismiss()
+        if (BackPressGuard.onCallback(SystemClock.uptimeMillis())) onDismiss()
     }
 
     Box(

@@ -3,6 +3,7 @@ package app.gamenative.ui.component
 import android.database.ContentObserver
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.provider.Settings
 import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
@@ -80,6 +81,7 @@ import app.gamenative.ui.util.applyScreenEffectsConfig
 import app.gamenative.ui.util.loadScreenEffectsConfig
 import app.gamenative.ui.util.persistScreenEffectsConfig
 import app.gamenative.utils.BrightnessManager
+import app.gamenative.wow.ui.BackPressGuard
 import com.winlator.container.Container
 import com.winlator.renderer.GLRenderer
 import com.winlator.renderer.VulkanRenderer
@@ -751,7 +753,9 @@ fun ScreenEffectsPanel(
         enableNTSC = false
     }
 
-    BackHandler(enabled = isVisible, onBack = onDismiss)
+    BackHandler(enabled = isVisible) {
+        if (BackPressGuard.onCallback(SystemClock.uptimeMillis())) onDismiss()
+    }
 
     LaunchedEffect(isVisible) {
         if (isVisible) {

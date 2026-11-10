@@ -34,6 +34,7 @@ import app.gamenative.ui.util.LocalSnackbarHostController
 import app.gamenative.ui.util.SnackbarHostController
 import app.gamenative.utils.LocaleHelper
 import app.gamenative.ui.util.SnackbarManager
+import app.gamenative.wow.ui.BackPressGuard
 import com.winlator.core.AppUtils
 import com.winlator.inputcontrols.ControllerManager
 import dagger.hilt.android.AndroidEntryPoint
@@ -217,10 +218,16 @@ class MainActivity : ComponentActivity() {
             keyEvent.any { it }
         } == true
 
+        if (event.keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
+            BackPressGuard.onKeyUp(event.eventTime)
+        }
+
         if (!eventDispatched) {
             if (event.keyCode == KeyEvent.KEYCODE_BACK && PluviaApp.keepAlive) {
                 if (event.action == KeyEvent.ACTION_DOWN) {
-                    PluviaApp.events.emit(AndroidEvent.BackPressed)
+                    if (BackPressGuard.onKeyDown(event.eventTime, event.repeatCount)) {
+                        PluviaApp.events.emit(AndroidEvent.BackPressed)
+                    }
                     eventDispatched = true
                 } else if (BuildConfig.MODERN_ANDROID && event.action == KeyEvent.ACTION_UP) {
                     eventDispatched = true

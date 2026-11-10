@@ -116,6 +116,7 @@ import app.gamenative.utils.downloader.GraphicsDriverDownloader
 import app.gamenative.utils.BrightnessManager
 import app.gamenative.utils.downloader.WinComponentDownloader
 import app.gamenative.utils.WineProcessSnapshotHelper
+import app.gamenative.wow.ui.BackPressGuard
 import com.winlator.alsaserver.ALSAClient
 import com.winlator.container.Container
 import com.winlator.container.ContainerFiles
@@ -1437,7 +1438,9 @@ fun XServerScreen(
     // BackHandler registers with OnBackPressedDispatcher to catch that path.
     // Legacy flavor (targetSdk 28) still receives BACK as a KeyEvent, so it keeps
     // master's event-bus route via registerBackAction(gameBack) below.
-    BackHandler(enabled = BuildConfig.MODERN_ANDROID) { gameBack() }
+    BackHandler(enabled = BuildConfig.MODERN_ANDROID) {
+        if (BackPressGuard.onCallback(SystemClock.uptimeMillis())) gameBack()
+    }
 
     DisposableEffect(container) {
         registerBackAction(gameBack)
