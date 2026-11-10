@@ -202,6 +202,23 @@ class GameInstallerTest {
     }
 
     @Test
+    fun updateFollowsTheRegionPickedInSettings() {
+        val tags = "Windows arm64 US? acct-USA? geoip-US? enUS speech?:Windows arm64 US? enUS text?"
+        File(root, ".build.info").writeText(
+            BuildInfo(GameInstaller.BUILD_INFO_HEADER, listOf(mapOf("Branch" to "us", "Active" to "1", "Tags" to tags, "Version" to "old", "Product" to "wowf"))).serialize(),
+        )
+        val request = InstallRequest(root, WowProduct.FOREVER)
+        assertEquals("us", request.keepingInstallRegion().region)
+        try {
+            app.gamenative.wow.product.GameRegions.chosen = app.gamenative.wow.product.GameRegion.EU
+            assertEquals("eu", request.keepingInstallRegion().region)
+            assertEquals("enUS", request.keepingInstallRegion().locale)
+        } finally {
+            app.gamenative.wow.product.GameRegions.chosen = null
+        }
+    }
+
+    @Test
     fun repairReplacesDamagedFile() = runBlocking {
         installer().run(req) {}
         File(root, "_forever_/Wow-arm64.exe").writeText("damaged")

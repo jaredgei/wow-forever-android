@@ -2,6 +2,7 @@ package app.gamenative.wow.install
 
 import app.gamenative.utils.Net
 import app.gamenative.wow.product.BuildInfo
+import app.gamenative.wow.product.GameRegions
 import app.gamenative.wow.product.WowProduct
 import app.gamenative.wow.tact.ArchiveIndex
 import app.gamenative.wow.tact.Blte
@@ -356,12 +357,16 @@ class GameInstaller(
     }
 }
 
-/** A repair or update keeps the region and language the install was made with. */
+/**
+ * A repair or update keeps the language the install was made with, and gets the build of the region the player
+ * picked in Settings, else the install's own. Regions patch on different days, so an EU player on a US-made
+ * install needs the EU build or the realms won't match (#36).
+ */
 internal fun InstallRequest.keepingInstallRegion(): InstallRequest {
     val row = BuildInfo.read(root)?.active(product)?.takeIf { it["Product"] == product.code } ?: return this
     val tags = row["Tags"].orEmpty().split(" ", ":")
     val locale = tags.firstOrNull { Regex("[a-z]{2}[A-Z]{2}").matches(it) } ?: locale
-    val region = row["Branch"]?.takeIf { it.length == 2 } ?: region
+    val region = GameRegions.chosen?.code ?: row["Branch"]?.takeIf { it.length == 2 } ?: region
     return copy(locale = locale, region = region)
 }
 
