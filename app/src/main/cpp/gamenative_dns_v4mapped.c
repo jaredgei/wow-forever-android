@@ -9,6 +9,13 @@
  * sockets to loopback, which breaks online multiplayer.  gethostname() is
  * interposed below to report the device's routable address instead.
  *
+ * Reporting the IP makes the Windows computer name change with every network.
+ * When the launcher sets WOWFOREVER_HOSTNAME to a valid host name (<= 63 chars,
+ * letters, digits and '-'), gethostname() returns that stable name instead, and
+ * getaddrinfo() resolves it like the IP before (routable address, else
+ * 127.0.0.1) while keeping the name as canonical name.  Without the variable
+ * the behaviour above is unchanged.
+ *
  * This shim is preloaded for every bionic launch.
  */
 
@@ -24,6 +31,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
 #define DNS_LOG(format, ...) \
@@ -260,11 +269,115 @@ static int map_ipv4_results(const struct addrinfo *ipv4, struct addrinfo **resul
     return 0;
 }
 
+#define WOW_HOSTNAME_ENV "WOWFOREVER_HOSTNAME"
+#define WOW_HOSTNAME_MAX 63
+
+/* The stable host name from WOWFOREVER_HOSTNAME, or NULL when unset/invalid. */
+static const char *wow_hostname(void)
+{
+    const char *name = getenv(WOW_HOSTNAME_ENV);
+    size_t i, length;
+
+    if (!name) return NULL;
+    length = strlen(name);
+    if (length == 0 || length > WOW_HOSTNAME_MAX) return NULL;
+    for (i = 0; i < length; i++)
+    {
+        char c = name[i];
+        if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+              (c >= '0' && c <= '9') || c == '-'))
+            return NULL;
+    }
+    return name;
+}
+
+/*
+ * Android's hostname is "localhost", which resolves to 127.0.0.1.  Connecting
+ * a UDP socket reveals the source address the kernel would use for a routable
+ * destination, without the interface enumeration the app sandbox filters.
+ * connect() on a datagram socket sends no packets.  Returns 1 and the dotted
+ * address (buffer of at least INET_ADDRSTRLEN) on success, 0 on any failure or
+ * when the address is not routable.
+ */
+static int routable_address(char *address, size_t length)
+{
+    struct sockaddr_in probe;
+    socklen_t probe_len = sizeof(probe);
+    int fd;
+
+    fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (fd < 0)
+        return 0;
+
+    memset(&probe, 0, sizeof(probe));
+    probe.sin_family = AF_INET;
+    probe.sin_port = htons(53);
+    probe.sin_addr.s_addr = htonl(0x08080808); /* any routable destination */
+    if (connect(fd, (const struct sockaddr *)&probe, sizeof(probe)) != 0 ||
+        getsockname(fd, (struct sockaddr *)&probe, &probe_len) != 0)
+    {
+        close(fd);
+        return 0;
+    }
+    close(fd);
+
+    if (probe.sin_addr.s_addr == 0 ||
+        (ntohl(probe.sin_addr.s_addr) >> 24) == 127)
+        return 0;
+    if (length < INET_ADDRSTRLEN ||
+        !inet_ntop(AF_INET, &probe.sin_addr, address, length))
+        return 0;
+    return 1;
+}
+
+int getaddrinfo(const char *node, const char *service,
+                const struct addrinfo *hints, struct addrinfo **result);
+
+/*
+ * getaddrinfo(WOWFOREVER_HOSTNAME): answer like the IP did before (routable
+ * address, else 127.0.0.1) so applications resolving their own host name keep
+ * working, but report the stable name as canonical name.
+ */
+static int resolve_own_hostname(const char *self, const char *service,
+                                const struct addrinfo *hints,
+                                struct addrinfo **result)
+{
+    struct addrinfo local_hints;
+    char address[INET_ADDRSTRLEN];
+    int ret;
+
+    if (!routable_address(address, sizeof(address)))
+        snprintf(address, sizeof(address), "127.0.0.1");
+
+    if (hints)
+        local_hints = *hints;
+    else
+        memset(&local_hints, 0, sizeof(local_hints));
+    local_hints.ai_flags |= AI_NUMERICHOST;
+    local_hints.ai_flags &= ~AI_CANONNAME;
+
+    ret = getaddrinfo(address, service, &local_hints, result);
+    if (ret) return ret;
+
+    if (hints && (hints->ai_flags & AI_CANONNAME) && *result)
+    {
+        char *canonical = strdup(self);
+        if (canonical)
+        {
+            free((*result)->ai_canonname);
+            (*result)->ai_canonname = canonical;
+        }
+    }
+    DNS_LOG("getaddrinfo(own host name) -> own address");
+    return 0;
+}
+
 int getaddrinfo(const char *node, const char *service,
                 const struct addrinfo *hints, struct addrinfo **result)
 {
     struct addrinfo fallback_hints;
     struct addrinfo *ipv4 = NULL;
+    const char *self;
     int ret;
 
     pthread_once(&resolver_once, resolve_next_symbols);
@@ -273,6 +386,10 @@ int getaddrinfo(const char *node, const char *service,
         errno = ENOSYS;
         return EAI_SYSTEM;
     }
+
+    self = node ? wow_hostname() : NULL;
+    if (self && strcasecmp(node, self) == 0)
+        return resolve_own_hostname(self, service, hints, result);
 
     if (hints && hints->ai_family != AF_INET6 &&
         (hints->ai_flags & (AI_V4MAPPED | AI_ALL)))
@@ -337,20 +454,31 @@ void freeaddrinfo(struct addrinfo *result)
 }
 
 /*
- * Android's hostname is "localhost", which resolves to 127.0.0.1.  When that
- * is the answer, report the device's routable address instead: connecting a
- * UDP socket reveals the source address the kernel would use, without the
- * interface enumeration the app sandbox filters.  connect() on a datagram
- * socket sends no packets.  On any failure the real hostname is kept.
+ * With WOWFOREVER_HOSTNAME set, report that stable name.  Otherwise, when
+ * Android's hostname is "localhost" (which resolves to 127.0.0.1), report the
+ * device's routable address instead; on any failure the real hostname is kept.
  */
 int gethostname(char *name, size_t len)
 {
-    struct sockaddr_in probe;
-    socklen_t probe_len = sizeof(probe);
     char address[INET_ADDRSTRLEN];
-    int ret, fd;
+    const char *self;
+    int ret;
 
     pthread_once(&resolver_once, resolve_next_symbols);
+
+    self = wow_hostname();
+    if (self)
+    {
+        size_t length = strlen(self);
+        if (length + 1 > len)
+        {
+            errno = ENAMETOOLONG;
+            return -1;
+        }
+        memcpy(name, self, length + 1);
+        return 0;
+    }
+
     if (!next_gethostname)
     {
         errno = ENOSYS;
@@ -363,26 +491,7 @@ int gethostname(char *name, size_t len)
     if (strcmp(name, "localhost") != 0 && name[0] != '\0')
         return 0;
 
-    fd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (fd < 0)
-        return 0;
-
-    memset(&probe, 0, sizeof(probe));
-    probe.sin_family = AF_INET;
-    probe.sin_port = htons(53);
-    probe.sin_addr.s_addr = htonl(0x08080808); /* any routable destination */
-    if (connect(fd, (const struct sockaddr *)&probe, sizeof(probe)) != 0 ||
-        getsockname(fd, (struct sockaddr *)&probe, &probe_len) != 0)
-    {
-        close(fd);
-        return 0;
-    }
-    close(fd);
-
-    if (probe.sin_addr.s_addr == 0 ||
-        (ntohl(probe.sin_addr.s_addr) >> 24) == 127)
-        return 0;
-    if (!inet_ntop(AF_INET, &probe.sin_addr, address, sizeof(address)))
+    if (!routable_address(address, sizeof(address)))
         return 0;
     if (strlen(address) + 1 > len)
         return 0;
