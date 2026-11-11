@@ -133,7 +133,7 @@ object WowClientDownloader {
     // Realms only accept their own region's build, which can lag behind or run ahead of the US one after a patch.
     internal fun regionRow(rows: List<Map<String, String>>, column: String, region: String): Map<String, String>? =
         rows.firstOrNull { it[column].equals(region, ignoreCase = true) }
-            ?: rows.firstOrNull { it[column] == "us" }
+            ?: rows.firstOrNull { it[column].equals("us", ignoreCase = true) }
             ?: rows.firstOrNull()
 
     /**
@@ -276,7 +276,7 @@ object WowClientDownloader {
 
     /**
      * Points the [TARGET_PRODUCT] row of [buildInfo] at [target], adding the row (and the file) when it's missing.
-     * A new row takes the region the build was picked for, else that of an existing beta row. The game streams
+     * The row takes the region the build was picked for; a new row without one takes that of an existing beta row. The game streams
      * missing assets from the "CDN Servers" URLs and crashes on startup when there are none.
      */
     internal fun upsertBuildInfo(buildInfo: File, target: VersionCheckResult) {
@@ -296,18 +296,32 @@ object WowClientDownloader {
         val rows = lines.drop(1).map { line -> header.zip(line.split("|")).toMap() }
         val existing = rows.indexOfFirst { it["Product"] == TARGET_PRODUCT }
         val updated = if (existing >= 0) {
-            rows.mapIndexed { idx, row -> if (idx == existing) row + updates else row }
+            rows.mapIndexed { idx, row ->
+                when {
+                    idx != existing -> row
+                    target.region.isBlank() -> row + updates
+                    else -> row + regionColumns(target.region, row["Tags"]) + updates
+                }
+            }
         } else {
             val branch = target.region.ifBlank { null }
                 ?: rows.firstOrNull { it["Product"] == LEGACY_PRODUCT }?.get("Branch")?.takeIf { it.isNotBlank() }
                 ?: defaultBranch()
-            val region = branch.uppercase(Locale.ROOT)
-            val tags = listOf("speech", "text").joinToString(":") { "Windows $PLATFORM_ARCH $region? enUS $it?" }
-            rows + (mapOf("Branch" to branch, "Tags" to tags) + updates)
+            rows + (regionColumns(branch, null) + updates)
         }
         val text = (listOf(lines.first()) + updated.map { row -> header.joinToString("|") { row[it].orEmpty() } }).joinToString("\n") + "\n"
         writeAtomically(buildInfo, text.toByteArray())
     }
+
+    // The region as the Battle.net app records it: as the Branch, and as the region tag (e.g. "US?") in Tags.
+    private fun regionColumns(branch: String, tags: String?): Map<String, String> {
+        val region = branch.uppercase(Locale.ROOT)
+        val regionTags = tags?.takeIf { it.isNotBlank() }?.replace(REGION_TAG, "$region?")
+            ?: listOf("speech", "text").joinToString(":") { "Windows $PLATFORM_ARCH $region? enUS $it?" }
+        return mapOf("Branch" to branch, "Tags" to regionTags)
+    }
+
+    private val REGION_TAG = Regex("""\b[A-Z]{2}\?""")
 
     // Best guess at the region the Battle.net app would record, for installs that have no beta row to copy it from.
     internal fun defaultBranch() = when (Locale.getDefault().country.uppercase(Locale.ROOT)) {

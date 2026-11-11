@@ -306,6 +306,7 @@ fun QuickMenu(
     isVisible: Boolean,
     onDismiss: () -> Unit,
     onItemSelected: (Int) -> Boolean,
+    onBack: () -> Unit = onDismiss,
     renderer: VulkanRenderer? = null,
     glRenderer: GLRenderer? = null,
     container: Container? = null,
@@ -480,7 +481,7 @@ fun QuickMenu(
     }
 
     BackHandler(enabled = isVisible) {
-        onDismiss()
+        onBack()
     }
 
     Box(

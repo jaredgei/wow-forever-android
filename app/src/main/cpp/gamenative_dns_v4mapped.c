@@ -9,6 +9,10 @@
  * sockets to loopback, which breaks online multiplayer.  gethostname() is
  * interposed below to report the device's routable address instead.
  *
+ * When GAMENATIVE_HOSTNAME is set, gethostname() reports that name instead,
+ * and the resolvers below resolve it to the routable address, so the Windows
+ * computer name stays the same across networks instead of following the IP.
+ *
  * This shim is preloaded for every bionic launch.
  */
 
@@ -24,6 +28,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <unistd.h>
 
 #define DNS_LOG(format, ...) \
@@ -140,6 +145,9 @@ static int (*next_getaddrinfo)(const char *, const char *, const struct addrinfo
                                struct addrinfo **);
 static void (*next_freeaddrinfo)(struct addrinfo *);
 static int (*next_gethostname)(char *, size_t);
+static struct hostent *(*next_gethostbyname)(const char *);
+static int (*next_gethostbyname_r)(const char *, struct hostent *, char *, size_t,
+                                   struct hostent **, int *);
 static pthread_once_t resolver_once = PTHREAD_ONCE_INIT;
 static pthread_mutex_t mapped_results_lock = PTHREAD_MUTEX_INITIALIZER;
 static struct mapped_result *mapped_results;
@@ -149,6 +157,8 @@ static void resolve_next_symbols(void)
     next_getaddrinfo = dlsym(RTLD_NEXT, "getaddrinfo");
     next_freeaddrinfo = dlsym(RTLD_NEXT, "freeaddrinfo");
     next_gethostname = dlsym(RTLD_NEXT, "gethostname");
+    next_gethostbyname = dlsym(RTLD_NEXT, "gethostbyname");
+    next_gethostbyname_r = dlsym(RTLD_NEXT, "gethostbyname_r");
 }
 
 static int network_getaddrinfo(const char *node, const char *service,
@@ -260,8 +270,61 @@ static int map_ipv4_results(const struct addrinfo *ipv4, struct addrinfo **resul
     return 0;
 }
 
+static int routable_address(char *address, size_t len);
+static int lookup(const char *node, const char *service,
+                  const struct addrinfo *hints, struct addrinfo **result);
+
+static const char *configured_hostname(void)
+{
+    const char *hostname = getenv("GAMENATIVE_HOSTNAME");
+    return hostname && hostname[0] ? hostname : NULL;
+}
+
+/*
+ * The configured hostname isn't in DNS, so lookups of it are answered with
+ * the routable address instead.  Returns [name] for any other name.
+ */
+static const char *local_name(const char *name, char *address, size_t len)
+{
+    const char *hostname = configured_hostname();
+
+    if (!name || !hostname || strcasecmp(name, hostname) != 0)
+        return name;
+    if (routable_address(address, len) != 0)
+        snprintf(address, len, "127.0.0.1");
+    return address;
+}
+
+/*
+ * The configured hostname's canonical name is the hostname itself: Wine
+ * builds the computer name from it, splitting the domain off at the first dot.
+ */
 int getaddrinfo(const char *node, const char *service,
                 const struct addrinfo *hints, struct addrinfo **result)
+{
+    char address[INET_ADDRSTRLEN];
+    const char *resolved = local_name(node, address, sizeof(address));
+    struct addrinfo *entry;
+    char *canonname;
+    int ret;
+
+    ret = lookup(resolved, service, hints, result);
+    if (ret || resolved == node || !hints || !(hints->ai_flags & AI_CANONNAME))
+        return ret;
+
+    for (entry = *result; entry; entry = entry->ai_next)
+    {
+        if (!entry->ai_canonname) continue;
+        canonname = strdup(node);
+        if (!canonname) continue;
+        free(entry->ai_canonname);
+        entry->ai_canonname = canonname;
+    }
+    return 0;
+}
+
+static int lookup(const char *node, const char *service,
+                  const struct addrinfo *hints, struct addrinfo **result)
 {
     struct addrinfo fallback_hints;
     struct addrinfo *ipv4 = NULL;
@@ -337,18 +400,85 @@ void freeaddrinfo(struct addrinfo *result)
 }
 
 /*
- * Android's hostname is "localhost", which resolves to 127.0.0.1.  When that
- * is the answer, report the device's routable address instead: connecting a
- * UDP socket reveals the source address the kernel would use, without the
- * interface enumeration the app sandbox filters.  connect() on a datagram
- * socket sends no packets.  On any failure the real hostname is kept.
+ * Connecting a UDP socket reveals the source address the kernel would use,
+ * without the interface enumeration the app sandbox filters.  connect() on a
+ * datagram socket sends no packets.
  */
-int gethostname(char *name, size_t len)
+static int routable_address(char *address, size_t len)
 {
     struct sockaddr_in probe;
     socklen_t probe_len = sizeof(probe);
+    int fd;
+
+    fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (fd < 0)
+        return -1;
+
+    memset(&probe, 0, sizeof(probe));
+    probe.sin_family = AF_INET;
+    probe.sin_port = htons(53);
+    probe.sin_addr.s_addr = htonl(0x08080808); /* any routable destination */
+    if (connect(fd, (const struct sockaddr *)&probe, sizeof(probe)) != 0 ||
+        getsockname(fd, (struct sockaddr *)&probe, &probe_len) != 0)
+    {
+        close(fd);
+        return -1;
+    }
+    close(fd);
+
+    if (probe.sin_addr.s_addr == 0 ||
+        (ntohl(probe.sin_addr.s_addr) >> 24) == 127)
+        return -1;
+    if (!inet_ntop(AF_INET, &probe.sin_addr, address, len))
+        return -1;
+    return 0;
+}
+
+struct hostent *gethostbyname(const char *name)
+{
     char address[INET_ADDRSTRLEN];
-    int ret, fd;
+
+    pthread_once(&resolver_once, resolve_next_symbols);
+    if (!next_gethostbyname)
+    {
+        h_errno = NO_RECOVERY;
+        return NULL;
+    }
+    return next_gethostbyname(local_name(name, address, sizeof(address)));
+}
+
+int gethostbyname_r(const char *name, struct hostent *ret, char *buf,
+                    size_t buflen, struct hostent **result, int *h_errnop)
+{
+    char address[INET_ADDRSTRLEN];
+
+    pthread_once(&resolver_once, resolve_next_symbols);
+    if (!next_gethostbyname_r)
+    {
+        *result = NULL;
+        *h_errnop = NO_RECOVERY;
+        return ENOSYS;
+    }
+    return next_gethostbyname_r(local_name(name, address, sizeof(address)), ret,
+                                buf, buflen, result, h_errnop);
+}
+
+/*
+ * Reports GAMENATIVE_HOSTNAME when set.  Otherwise, Android's hostname is
+ * "localhost", which resolves to 127.0.0.1, so report the device's routable
+ * address instead.  On any failure the real hostname is kept.
+ */
+int gethostname(char *name, size_t len)
+{
+    const char *hostname = configured_hostname();
+    char address[INET_ADDRSTRLEN];
+    int ret;
+
+    if (hostname && strlen(hostname) + 1 <= len)
+    {
+        memcpy(name, hostname, strlen(hostname) + 1);
+        return 0;
+    }
 
     pthread_once(&resolver_once, resolve_next_symbols);
     if (!next_gethostname)
@@ -363,26 +493,7 @@ int gethostname(char *name, size_t len)
     if (strcmp(name, "localhost") != 0 && name[0] != '\0')
         return 0;
 
-    fd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (fd < 0)
-        return 0;
-
-    memset(&probe, 0, sizeof(probe));
-    probe.sin_family = AF_INET;
-    probe.sin_port = htons(53);
-    probe.sin_addr.s_addr = htonl(0x08080808); /* any routable destination */
-    if (connect(fd, (const struct sockaddr *)&probe, sizeof(probe)) != 0 ||
-        getsockname(fd, (struct sockaddr *)&probe, &probe_len) != 0)
-    {
-        close(fd);
-        return 0;
-    }
-    close(fd);
-
-    if (probe.sin_addr.s_addr == 0 ||
-        (ntohl(probe.sin_addr.s_addr) >> 24) == 127)
-        return 0;
-    if (!inet_ntop(AF_INET, &probe.sin_addr, address, sizeof(address)))
+    if (routable_address(address, sizeof(address)) != 0)
         return 0;
     if (strlen(address) + 1 > len)
         return 0;

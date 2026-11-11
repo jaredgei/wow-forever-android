@@ -115,6 +115,19 @@ class WowClientDownloaderTest {
     }
 
     @Test
+    fun upsertBuildInfo_movesAnExistingRowToTheTargetsRegion() {
+        val buildInfo = File(tempFolder.newFolder("switch_region"), ".build.info")
+        WowClientDownloader.upsertBuildInfo(buildInfo, TARGET.copy(region = "us"))
+
+        WowClientDownloader.upsertBuildInfo(buildInfo, TARGET.copy(region = "kr"))
+
+        val row = WowClientDownloader.readBuildInfo(buildInfo)!!
+        assertEquals(2, buildInfo.readLines().size)
+        assertEquals("kr", row["Branch"])
+        assertEquals("Windows arm64 KR? enUS speech?:Windows arm64 KR? enUS text?", row["Tags"])
+    }
+
+    @Test
     fun upsertBuildInfo_createsFileForFreshInstall() {
         val buildInfo = File(tempFolder.newFolder("fresh"), ".build.info")
 
