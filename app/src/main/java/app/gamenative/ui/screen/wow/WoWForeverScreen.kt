@@ -86,6 +86,7 @@ object WoWLauncherState {
 private const val CONTAINER_ID = "wow_forever"
 private const val READY_STATUS = "Ready to launch"
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun WoWForeverScreen(
     onLaunch: (appId: String) -> Unit,
@@ -650,9 +651,10 @@ fun WoWForeverScreen(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    // Wraps onto a second line on narrow portrait phones, where a Row squeezed the last button's text
+                    // into one letter per line and hid the login option (#44).
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
                     ) {
                         LinkButton("Refresh Status", Icons.Default.Refresh) {
                             checkFiles()
@@ -918,7 +920,7 @@ enum class GameRegion(val label: String) {
 
 /** The 16:9 render budget, before it's reshaped to the window's aspect ratio. Defaults to the GPU profile's size. */
 enum class RenderResolution(val size: String, val label: String) {
-    HD("1280x720", "720p"), FULL_HD("1920x1080", "1080p");
+    HD("1280x720", "720p"), HD_PLUS("1600x900", "900p"), FULL_HD("1920x1080", "1080p");
 
     companion object {
         private const val KEY_RESOLUTION = "resolution"
@@ -1069,7 +1071,7 @@ private fun LinkButton(text: String, icon: ImageVector, enabled: Boolean = true,
     TextButton(onClick = onClick, enabled = enabled) {
         Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp), tint = WowMuted)
         Spacer(modifier = Modifier.width(6.dp))
-        Text(text, fontSize = 12.sp, color = WowMuted)
+        Text(text, fontSize = 12.sp, color = WowMuted, maxLines = 1)
     }
 }
 
@@ -1310,9 +1312,11 @@ private val RESOLUTION_KEYS = listOf("gxFullscreenResolution", "gxWindowedResolu
 
 private const val CONFIG_WTF = "$FLAVOR_DIR/WTF/Config.wtf"
 
-// The portal Config.wtf already points at, else the install's region from .build.info.
+// The portal Config.wtf already points at, else the install's region from .build.info. Runs while the launcher is
+// composed, before storage access may be granted: after a reinstall, files the old install left can't be read yet.
 private fun portalOf(root: File) =
-    File(root, CONFIG_WTF).takeIf { it.isFile }?.readLines()?.firstOrNull { it.startsWith("SET portal ", ignoreCase = true) }
+    runCatching { File(root, CONFIG_WTF).takeIf { it.isFile }?.readLines() }.getOrNull()
+        ?.firstOrNull { it.startsWith("SET portal ", ignoreCase = true) }
         ?.substringAfter(" ")?.substringAfter(" ")?.trim('"')?.takeIf { it.isNotBlank() }
         ?: WowClientDownloader.readBuildInfo(File(root, BUILD_INFO))?.get("Branch")?.takeIf { it.isNotBlank() }?.uppercase()
         ?: WowClientDownloader.defaultBranch().uppercase()
