@@ -97,7 +97,21 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             }
             return null;
         }
+        // ColorOS/OxygenOS 17's libc opens a file on its first malloc, which the full libredirect's open() hook
+        // re-enters while its own one-time init is still running, so Wine hangs before it starts (#27). The minimal
+        // build has no such init. It also skips the full build's file-path rewrites, so it's limited to these devices,
+        // where it's been confirmed to reach the login screen.
+        if (BuildConfig.MODERN_ANDROID && isColorOs17OrLater() && (container == null || !container.isFasterExternalLoading())) {
+            File minimal = new File(imageFs.getLibDir(), "libredirect-bionic-wx-minimal.so");
+            if (minimal.exists()) return minimal.getAbsolutePath();
+        }
         return imageFs.getLibDir() + "/" + BuildConfig.PRELOAD_BIONIC_SO;
+    }
+
+    private static boolean isColorOs17OrLater() {
+        if (Build.VERSION.SDK_INT < 37) return false;
+        String manufacturer = Build.MANUFACTURER.toLowerCase(java.util.Locale.ROOT);
+        return manufacturer.equals("oppo") || manufacturer.equals("oneplus") || manufacturer.equals("realme");
     }
 
     public BionicProgramLauncherComponent(ContentsManager contentsManager, ContentProfile wineProfile) {

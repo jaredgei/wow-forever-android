@@ -168,7 +168,7 @@ fun WoWForeverScreen(
 
     suspend fun fetchVersionStatus() {
         isCheckingVersion = true
-        versionStatus = withContext(Dispatchers.IO) { WowClientDownloader.checkVersion(File(gamePath)) }
+        versionStatus = withContext(Dispatchers.IO) { WowClientDownloader.checkVersion(File(gamePath), region.cdnRegion) }
         isCheckingVersion = false
     }
 
@@ -324,7 +324,7 @@ fun WoWForeverScreen(
 
     fun performInstall() {
         showUpgradeDialog = false
-        downloadGameFiles("Install failed", WowClientDownloader::install) {
+        downloadGameFiles("Install failed", { root, onStatus -> WowClientDownloader.install(root, region.cdnRegion, onStatus) }) {
             versionStatus = null
             if (checkFiles()) {
                 checkVersionStatus()
@@ -472,6 +472,9 @@ fun WoWForeverScreen(
                         OptionMenu("Region: ${region.label}", Icons.Default.Public, GameRegion.entries, region, { it.label }, !isLaunching) {
                             GameRegion.save(context, it)
                             region = it
+                            // Regions can be on different builds, so the install may now need an update.
+                            versionStatus = null
+                            checkVersionStatus()
                         }
                         OptionMenu("Resolution: ${resolution.label}", Icons.Default.AspectRatio, RenderResolution.entries, resolution, { it.label }, !isLaunching) {
                             RenderResolution.save(context, it)
@@ -891,6 +894,9 @@ private fun prefs(context: Context) = context.getSharedPreferences("wow_forever"
 enum class GameRegion(val label: String) {
     US("Americas"), EU("Europe"), KR("Korea"), TW("Taiwan");
 
+    /** The region's name in Blizzard's patch server tables. */
+    val cdnRegion get() = name.lowercase()
+
     companion object {
         private const val KEY_REGION = "region"
 
@@ -1176,7 +1182,7 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, scr
     }
     if (!arm64Exe.exists()) {
         try {
-            WowClientDownloader.download(gameRoot, onStatus)
+            WowClientDownloader.download(gameRoot, GameRegion.current(context, gameRoot.path).cdnRegion, onStatus)
         } catch (e: Exception) {
             if (!arm64Exe.exists()) throw IllegalStateException("Couldn't download $EXE_NAME: ${e.message}", e)
             Timber.w(e, "Client update check failed, launching the existing $EXE_NAME")
@@ -1305,7 +1311,8 @@ private const val CONFIG_WTF = "$FLAVOR_DIR/WTF/Config.wtf"
 private fun portalOf(root: File) =
     File(root, CONFIG_WTF).takeIf { it.isFile }?.readLines()?.firstOrNull { it.startsWith("SET portal ", ignoreCase = true) }
         ?.substringAfter(" ")?.substringAfter(" ")?.trim('"')?.takeIf { it.isNotBlank() }
-        ?: WowClientDownloader.readBuildInfo(File(root, BUILD_INFO))?.get("Branch")?.takeIf { it.isNotBlank() }?.uppercase() ?: "US"
+        ?: WowClientDownloader.readBuildInfo(File(root, BUILD_INFO))?.get("Branch")?.takeIf { it.isNotBlank() }?.uppercase()
+        ?: WowClientDownloader.defaultBranch().uppercase()
 
 private fun installBundledComponents(context: Context, onStatus: (String) -> Unit) {
     installDriver(context, DEFAULT_DRIVER, "turnip-wow-scheduler-test.zip", onStatus)

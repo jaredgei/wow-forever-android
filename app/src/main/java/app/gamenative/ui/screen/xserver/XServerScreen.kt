@@ -223,6 +223,7 @@ private const val EXIT_PROCESS_TIMEOUT_MS = 30_000L
 private const val EXIT_PROCESS_POLL_INTERVAL_MS = 1_000L
 private const val EXIT_PROCESS_RESPONSE_TIMEOUT_MS = 2_000L
 private const val QUICK_MENU_PROCESS_POLL_INTERVAL_MS = 2_000L
+private const val QUICK_MENU_DUPLICATE_BACK_MS = 500L
 private const val DEFAULT_FPS_LIMITER_MAX_HZ = 60
 private const val DEFAULT_FPS_LIMITER_TARGET_HZ = 60
 private const val FPS_LIMITER_ENABLED_EXTRA = "fpsLimiterEnabled"
@@ -558,6 +559,9 @@ fun XServerScreen(
     var keyboardRequestedFromOverlay by remember { mutableStateOf(false) }
     var shouldForceResumeOnMenuClose by remember { mutableStateOf(false) }
     var showQuickMenu by remember { mutableStateOf(false) }
+    // Some ROMs (e.g. RedMagic) deliver one back gesture both as KEYCODE_BACK and through OnBackInvokedCallback,
+    // so the second copy would close the menu the first one just opened.
+    var quickMenuOpenedAt by remember { mutableStateOf(0L) }
     var quickMenuToolsVisible by remember { mutableStateOf(false) }
     var quickMenuWineProcesses by remember { mutableStateOf<List<ProcessInfo>>(emptyList()) }
     var quickMenuWineProcessesLoading by remember { mutableStateOf(false) }
@@ -1089,7 +1093,8 @@ fun XServerScreen(
         }
     }
 
-    val dismissOverlayMenu: () -> Unit = {
+    val dismissOverlayMenu: () -> Unit = dismiss@{
+        if (SystemClock.uptimeMillis() - quickMenuOpenedAt < QUICK_MENU_DUPLICATE_BACK_MS) return@dismiss
         if (!keyboardRequestedFromOverlay) {
             imeInputReceiver?.hideKeyboard()
         }
@@ -1395,6 +1400,7 @@ fun XServerScreen(
             }
         }, 100)
 
+        quickMenuOpenedAt = SystemClock.uptimeMillis()
         showQuickMenu = true
     }
 
