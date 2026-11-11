@@ -111,6 +111,7 @@ import app.gamenative.utils.ContainerUtils
 import app.gamenative.utils.downloader.CoreDriverDownloader
 import app.gamenative.utils.LsfgQuickMenuHelper
 import app.gamenative.utils.LsfgVkManager
+import app.gamenative.utils.MachineIdentityApply
 import app.gamenative.utils.downloader.DXWrapperDownloader
 import app.gamenative.utils.downloader.GraphicsDriverDownloader
 import app.gamenative.utils.BrightnessManager
@@ -4092,6 +4093,10 @@ private suspend fun setupWineSystemFiles(
         container.putExtra("startupSelection", startupSelection)
         containerDataChanged = true
     }
+
+    // Own stable machine identity (MachineGuid, computer name, volume serial) in the WoW prefix. After
+    // everything above, so refreshSkeleton / component extraction can never leave the shared defaults.
+    MachineIdentityApply.applyToContainer(context, container)
 
     if (containerDataChanged) container.saveData()
 }
