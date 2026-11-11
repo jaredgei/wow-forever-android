@@ -51,7 +51,7 @@
             android:launchMode="singleTop"
             android:screenOrientation="${screenOrientation}"
             android:windowSoftInputMode="adjustResize"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|navigation"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|density|keyboard|keyboardHidden|navigation"
             android:theme="@style/Theme.Pluvia">
         </activity>
 
