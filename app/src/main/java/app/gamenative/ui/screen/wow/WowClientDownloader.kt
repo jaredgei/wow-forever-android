@@ -28,7 +28,8 @@ object WowClientDownloader {
     const val LEGACY_PRODUCT = "wow_classic_beta"
     private const val PLATFORM_ARCH = "arm64"
     private const val EXCLUDED_ARCH = "x86_64"
-    private const val PATCH_URL = "http://us.patch.battle.net:1119/$TARGET_PRODUCT"
+    // Lists every region's build, like the plain-HTTP patch server on port 1119 it replaces.
+    private const val PATCH_URL = "https://us.version.battle.net/v2/products/$TARGET_PRODUCT"
     private const val DEFAULT_CDN_PATH = "tpr/wow"
     private val DEFAULT_CDN_HOSTS = listOf("level3.blizzard.com", "us.cdn.blizzard.com")
     private const val INDEX_DOWNLOAD_THREADS = 8
@@ -162,7 +163,7 @@ object WowClientDownloader {
 
     fun updateGame(gameRoot: File, target: VersionCheckResult, onStatus: (String) -> Unit) {
         val cdn = Cdn(
-            hosts = target.remoteCdnHosts.ifEmpty { DEFAULT_CDN_HOSTS },
+            servers = httpsServers(target.remoteCdnServers, target.remoteCdnHosts),
             path = target.remoteCdnPath.ifEmpty { DEFAULT_CDN_PATH },
         )
         onStatus("Fetching build ${target.remoteVersion} manifest...")
@@ -192,7 +193,10 @@ object WowClientDownloader {
         val latest = checkVersion(gameRoot, region)
         if (latest != null && latest.remoteBuildConfig.isNotBlank()) return updateGame(gameRoot, latest, onStatus)
 
-        val cdn = Cdn(hosts = splitHosts(row.getValue("CDN Hosts")), path = row.getValue("CDN Path"))
+        val cdn = Cdn(
+            servers = httpsServers(row["CDN Servers"].orEmpty().let(::splitHosts), row["CDN Hosts"].orEmpty().let(::splitHosts)),
+            path = row.getValue("CDN Path"),
+        )
         onStatus("Reading build ${row["Version"].orEmpty()} manifest...")
         syncClient(
             gameRoot = gameRoot,
@@ -341,31 +345,59 @@ object WowClientDownloader {
         }
     }
 
-    private class Cdn(val hosts: List<String>, val path: String) {
-        fun require(kind: String, key: String) = fetch(kind, key) ?: throw IOException("CDN is missing $kind/$key")
+    /** [servers] are HTTPS base URLs, e.g. "https://level3.ssl.blizzard.com". */
+    private class Cdn(val servers: List<String>, val path: String) {
+        fun require(kind: String, key: String): ByteArray {
+            val bytes = fetch(kind, key) ?: throw IOException("CDN is missing $kind/$key")
+            // Configs are named by their MD5, so they can be checked before anything is parsed from them. Data files
+            // are checked once decoded, against the install manifest.
+            if (kind == "config") verifyConfigDigest(key, bytes)
+            return bytes
+        }
 
         fun fetch(kind: String, key: String, range: LongRange? = null): ByteArray? {
             var failure: IOException? = null
             var missing = false
-            for (host in hosts) {
+            for (server in servers) {
                 val request = Request.Builder()
-                    .url("http://$host/$path/$kind/${key.substring(0, 2)}/${key.substring(2, 4)}/$key")
+                    .url("$server/$path/$kind/${key.substring(0, 2)}/${key.substring(2, 4)}/$key")
                     .apply { if (range != null) header("Range", "bytes=${range.first}-${range.last}") }
                     .build()
                 try {
                     Net.http.newCall(request).execute().use { response ->
                         when {
-                            response.isSuccessful -> return response.body!!.bytes()
+                            // A server that ignores Range answers 200 with the whole file, which isn't the bytes asked for.
+                            response.code == (if (range != null) 206 else 200) -> return response.body!!.bytes()
                             response.code == 403 || response.code == 404 -> missing = true
-                            else -> failure = IOException("HTTP ${response.code} from $host")
+                            else -> failure = IOException("HTTP ${response.code} from $server")
                         }
                     }
                 } catch (e: IOException) {
                     failure = e
                 }
             }
-            if (missing) return null
-            throw failure ?: IOException("No CDN hosts in $BUILD_INFO")
+            // Only report a file as missing when every server that answered said so.
+            if (missing && failure == null) return null
+            throw failure ?: IOException("No CDN servers for $path")
+        }
+    }
+
+    internal fun verifyConfigDigest(key: String, bytes: ByteArray) {
+        if (!hex(MessageDigest.getInstance("MD5").digest(bytes), 0, 16).equals(key, ignoreCase = true)) {
+            throw IOException("Checksum mismatch for config $key")
+        }
+    }
+
+    /**
+     * The HTTPS servers among the patch server's "Servers" URLs (e.g. "https://level3.ssl.blizzard.com/?maxhosts=4"),
+     * else the "Hosts" over HTTPS. Level 3 serves HTTPS from a separate host name.
+     */
+    internal fun httpsServers(servers: List<String>, hosts: List<String>): List<String> {
+        val https = servers.filter { it.startsWith("https://", ignoreCase = true) }.map { it.substringBefore("?").trimEnd('/') }
+        return https.distinct().ifEmpty {
+            hosts.ifEmpty { DEFAULT_CDN_HOSTS }.map { host ->
+                "https://" + if (host.equals("level3.blizzard.com", ignoreCase = true)) "level3.ssl.blizzard.com" else host
+            }
         }
     }
 

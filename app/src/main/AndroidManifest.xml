@@ -27,7 +27,7 @@
 
     <application
         android:name=".PluviaApp"
-        android:usesCleartextTraffic="true"
+        android:usesCleartextTraffic="false"
         android:requestLegacyExternalStorage="true"
         android:allowBackup="false"
         android:extractNativeLibs="true"

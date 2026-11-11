@@ -1181,10 +1181,6 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, scr
     }
 
     val arm64Exe = File(gameRoot, "$FLAVOR_DIR/$EXE_NAME")
-    BattleNetSignIn.load(context)?.let { login ->
-        BattleNetSignIn.writeLoginFile(gameRoot, login)
-        BattleNetSignIn.startLoginWatcher(gameRoot)
-    }
     if (!arm64Exe.exists()) {
         try {
             WowClientDownloader.download(gameRoot, GameRegion.current(context, gameRoot.path).cdnRegion, onStatus)
@@ -1206,6 +1202,11 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, scr
         container.saveData()
     }
     check(containerManager.hasContainer(CONTAINER_ID)) { "Container creation failed. Check system storage and logs." }
+    // Written last, so the password isn't on disk during the client download or container setup.
+    BattleNetSignIn.load(context)?.let { login ->
+        BattleNetSignIn.writeLoginFile(gameRoot, login)
+        BattleNetSignIn.startLoginWatcher(gameRoot)
+    }
     return CONTAINER_ID
 }
 

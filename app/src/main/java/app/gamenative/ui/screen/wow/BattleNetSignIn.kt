@@ -1,6 +1,7 @@
 package app.gamenative.ui.screen.wow
 
 import android.content.Context
+import android.os.FileObserver
 import android.util.Base64
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -31,6 +32,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.io.File
+import java.util.concurrent.atomic.AtomicLong
 
 object BattleNetSignIn {
     data class Login(val email: String, val password: String)
@@ -59,7 +61,7 @@ object BattleNetSignIn {
 
     fun writeLoginFile(gameRoot: File, login: Login) {
         try {
-            val file = File(File(gameRoot, WowClientDownloader.FLAVOR_DIR), "login.txt")
+            val file = File(File(gameRoot, WowClientDownloader.FLAVOR_DIR), LOGIN_FILE)
             file.parentFile?.mkdirs()
             file.writeText("${login.email}\n${login.password}\n")
         } catch (e: Exception) {
@@ -71,7 +73,7 @@ object BattleNetSignIn {
     fun removeLoginFile(gameRoot: File) {
         listOf(WowClientDownloader.FLAVOR_DIR, WowClientDownloader.LEGACY_FLAVOR_DIR).forEach { flavorDir ->
             try {
-                val file = File(File(gameRoot, flavorDir), "login.txt")
+                val file = File(File(gameRoot, flavorDir), LOGIN_FILE)
                 if (file.exists()) {
                     file.writeBytes(ByteArray(file.length().coerceAtMost(4096).toInt()))
                     file.delete()
@@ -82,20 +84,38 @@ object BattleNetSignIn {
         }
     }
 
+    /**
+     * Removes login.txt, which holds the password in plain text in shared storage, once the login has gone through
+     * (Hotfix.log fills up). WoW reads the file several times over a couple of seconds and only signs in afterwards, so
+     * it can't go on the first read. If the login fails, it goes a minute after WoW last read it. Storage mounts don't
+     * all deliver file events (some SD cards), so the last resort is a deadline long enough for a fresh install's first
+     * boot, which streams assets and plays the intro cinematic before reaching the login screen.
+     */
     fun startLoginWatcher(gameRoot: File) {
-        CoroutineScope(Dispatchers.IO).launch {
-            val hotfixLog = File(File(gameRoot, WowClientDownloader.FLAVOR_DIR), "Logs/Hotfix.log")
-            hotfixLog.delete()
-            // A fresh install's first boot streams assets and plays the intro cinematic before reaching the login screen.
-            val deadline = System.currentTimeMillis() + 600_000L
-            while (isActive && System.currentTimeMillis() < deadline) {
-                delay(1000L)
-                if (hotfixLog.exists() && hotfixLog.length() > 50_000L) {
-                    removeLoginFile(gameRoot)
-                    return@launch
-                }
+        val flavorDir = File(gameRoot, WowClientDownloader.FLAVOR_DIR)
+        val hotfixLog = File(flavorDir, "Logs/Hotfix.log")
+        hotfixLog.delete()
+        val lastRead = AtomicLong()
+        @Suppress("DEPRECATION") // The File constructor needs API 29.
+        val observer = object : FileObserver(flavorDir.path, CLOSE_NOWRITE) {
+            override fun onEvent(event: Int, path: String?) {
+                if (path == LOGIN_FILE) lastRead.set(System.currentTimeMillis())
             }
-            removeLoginFile(gameRoot)
+        }
+        observer.startWatching()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val deadline = System.currentTimeMillis() + 600_000L
+                while (isActive && System.currentTimeMillis() < deadline &&
+                    !(hotfixLog.exists() && hotfixLog.length() > 50_000L) &&
+                    !(lastRead.get() > 0 && System.currentTimeMillis() - lastRead.get() > 60_000L)
+                ) {
+                    delay(1000L)
+                }
+            } finally {
+                observer.stopWatching()
+                removeLoginFile(gameRoot)
+            }
         }
     }
 
@@ -104,6 +124,7 @@ object BattleNetSignIn {
     private const val PREFS = "battle_net_login"
     private const val KEY_EMAIL = "email"
     private const val KEY_PASSWORD = "password"
+    private const val LOGIN_FILE = "login.txt"
 }
 
 @Composable

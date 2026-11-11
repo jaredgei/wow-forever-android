@@ -3,6 +3,7 @@ package app.gamenative.ui.screen.wow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -125,6 +126,41 @@ class WowClientDownloaderTest {
         assertEquals(2, buildInfo.readLines().size)
         assertEquals("kr", row["Branch"])
         assertEquals("Windows arm64 KR? enUS speech?:Windows arm64 KR? enUS text?", row["Tags"])
+    }
+
+    @Test
+    fun httpsServers_keepsTheHttpsServersWithoutTheirOptions() {
+        val servers = listOf(
+            "http://level3.blizzard.com/?maxhosts=8",
+            "https://level3.ssl.blizzard.com/?maxhosts=4&fallback=1",
+            "https://us.cdn.blizzard.com/?maxhosts=4&fallback=1",
+        )
+
+        assertEquals(
+            listOf("https://level3.ssl.blizzard.com", "https://us.cdn.blizzard.com"),
+            WowClientDownloader.httpsServers(servers, listOf("level3.blizzard.com")),
+        )
+    }
+
+    @Test
+    fun httpsServers_fallsBackToTheHostsOverHttps() {
+        assertEquals(
+            listOf("https://level3.ssl.blizzard.com", "https://kr.cdn.blizzard.com"),
+            WowClientDownloader.httpsServers(listOf("http://level3.blizzard.com/"), listOf("level3.blizzard.com", "kr.cdn.blizzard.com")),
+        )
+        assertEquals(
+            listOf("https://level3.ssl.blizzard.com", "https://us.cdn.blizzard.com"),
+            WowClientDownloader.httpsServers(emptyList(), emptyList()),
+        )
+    }
+
+    @Test
+    fun verifyConfigDigest_checksTheContentAgainstItsKey() {
+        val data = "build-config-content".toByteArray()
+        WowClientDownloader.verifyConfigDigest("CE78972E1A942C496938C2700A19735D", data)
+        assertThrows(java.io.IOException::class.java) {
+            WowClientDownloader.verifyConfigDigest("0".repeat(32), data)
+        }
     }
 
     @Test
