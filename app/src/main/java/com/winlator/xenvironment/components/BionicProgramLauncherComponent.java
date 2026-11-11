@@ -18,6 +18,8 @@ import androidx.annotation.NonNull;
 import com.winlator.PrefManager;
 
 import app.gamenative.utils.LsfgVkManager;
+import app.gamenative.utils.MachineIdentity;
+import app.gamenative.utils.MachineIdentityApply;
 import com.winlator.box86_64.Box86_64Preset;
 import com.winlator.box86_64.Box86_64PresetManager;
 import com.winlator.container.Container;
@@ -338,6 +340,9 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         if (replacePath != null) ld_preload += ":" + replacePath;
 
         envVars.put("LD_PRELOAD", ld_preload);
+        // WoW container: stable own host name for the DNS shim (gethostname), see MachineIdentity.
+        String wowHostname = MachineIdentityApply.shimHostname(context, container);
+        if (wowHostname != null) envVars.put(MachineIdentity.ENV_HOSTNAME, wowHostname);
         envVars.put("EVSHIM_WINE", 1);
         envVars.put("EVSHIM_SHM_NAME", "controller-shm0");
 

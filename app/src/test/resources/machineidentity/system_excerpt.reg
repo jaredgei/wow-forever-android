@@ -1,0 +1,92 @@
+WINE REGISTRY Version 2
+;; All keys relative to REGISTRY\\Machine
+
+#arch=win64
+
+[Software\\Microsoft\\Cryptography] 1753725033
+#time=1dbffe81de76732
+"MachineGuid"="87447f37-0be9-4ca4-8034-20645c186c64"
+
+[Software\\Microsoft\\Windows\\CurrentVersion] 1753725046
+#time=1dbffe82540f46c
+"CommonFilesDir"="C:\\Program Files\\Common Files"
+"CommonFilesDir (Arm)"="C:\\Program Files (Arm)\\Common Files"
+"CommonFilesDir (x86)"="C:\\Program Files (x86)\\Common Files"
+"FirstInstallDateTime"=hex:21,81,7c,23
+"ProductId"="00330-50000-00000-AAOEM"
+"ProgramFilesDir"="C:\\Program Files"
+"ProgramFilesDir (Arm)"="C:\\Program Files (Arm)"
+"ProgramFilesDir (x86)"="C:\\Program Files (x86)"
+"ProgramFilesPath"=str(2):"%ProgramFiles%"
+"RegisteredOrganization"=""
+"RegisteredOwner"=""
+
+[Software\\Microsoft\\Windows NT\\CurrentVersion] 1753725046
+#time=1dbffe825406b82
+"CurrentBuild"="19045"
+"CurrentBuildNumber"="19045"
+"CurrentMajorVersionNumber"=dword:0000000a
+"CurrentMinorVersionNumber"=dword:00000000
+"CurrentType"="Multiprocessor Free"
+"CurrentVersion"="6.3"
+"DigitalProductId"=hex:a4,00,00,00,03,00,00,00,30,30,33,33,30,2d,35,30,30,30,\
+  30,2d,30,30,30,30,30,2d,41,41,4f,45,4d,00,ec,0c,00,00,5b,54,48,5d,20,58,31,\
+  39,2d,39,39,34,38,31,00,00,ec,0c,00,00,d9,33,03,56,7b,53,f9,7d,2c,55,6c,96,\
+  c1,e6,8d,0b,7a,e1,24,eb,2f,0a,0a,d5,00,00,00,00,00,00,00,00,00,00,00,00,00,\
+  00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,\
+  00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,\
+  00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00
+"DisplayVersion"="22H2"
+"EditionId"="Professional"
+"InstallationType"="Client"
+"InstallDate"=dword:4be5019a
+"ProductId"="00330-50000-00000-AAOEM"
+"ProductName"="Windows 10 Pro"
+"RegisteredOrganization"=""
+"RegisteredOwner"=""
+"ReleaseId"="2009"
+"SystemRoot"="C:\\windows"
+"UBR"=dword:000016a4
+
+[Software\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion] 1753725046
+#time=1dbffe82573d378
+"CommonFilesDir"="C:\\Program Files (x86)\\Common Files"
+"CommonFilesDir (x86)"="C:\\Program Files (x86)\\Common Files"
+"FirstInstallDateTime"=hex:21,81,7c,23
+"ProductId"="00330-50000-00000-AAOEM"
+"ProgramFilesDir"="C:\\Program Files (x86)"
+"ProgramFilesDir (x86)"="C:\\Program Files (x86)"
+"ProgramFilesPath"=str(2):"%ProgramFiles%"
+"RegisteredOrganization"=""
+"RegisteredOwner"=""
+
+[Software\\Wow6432Node\\Microsoft\\Windows NT\\CurrentVersion] 1753725044
+#time=1dbffe82441a34a
+"CurrentBuild"="19045"
+"CurrentBuildNumber"="19045"
+"CurrentMajorVersionNumber"=dword:0000000a
+"CurrentMinorVersionNumber"=dword:00000000
+"CurrentType"="Multiprocessor Free"
+"CurrentVersion"="6.3"
+"DigitalProductId"="00"
+"DisplayVersion"="22H2"
+"EditionId"="Professional"
+"InstallationType"="Client"
+"InstallDate"=dword:4be5019a
+"ProductId"="00330-50000-00000-AAOEM"
+"ProductName"="Windows 10 Pro"
+"RegisteredOrganization"=""
+"RegisteredOwner"=""
+"ReleaseId"="2009"
+"SystemRoot"="C:\\windows"
+"UBR"=dword:000016a4
+
+[System\\ControlSet001\\Control\\ComputerName\\ComputerName] 1753725024
+#time=1dbffe8187431a4
+"ComputerName"="LOCALHOST"
+
+[System\\ControlSet001\\Services\\Tcpip\\Parameters] 1753725033
+#time=1dbffe81dfb6c82
+"DataBasePath"="C:\\windows\\system32\\drivers\\etc"
+"Domain"=""
+"Hostname"="localhost"
