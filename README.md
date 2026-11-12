@@ -55,7 +55,7 @@ WoW Forever/
 - `Data/` is the same on every platform, so a Mac, Windows, or ARM install all work.
 - `.build.info` is a hidden file. Copy it too. Without it the game fails with *"CAS system was unable to initialize"*.
 - You don't need `Wow-ARM64.exe`. Mac and x86 installs don't ship it, so the app downloads the matching Windows ARM64 client from Blizzard's CDN when you press Play, and checks its hashes.
-- **Change Location** switches folders later.
+- **Location** switches folders later.
 
 Ways to get the files onto the device:
 
@@ -85,14 +85,14 @@ Once your game files and Battle.net credentials are configured, the app automati
 - The app creates a basic `WTF/Config.wtf` on first run and always sets `gxApi "D3D11"`, the renderer that works with DXVK.
 - **Region:** tap **Region** on the setup screen to choose Americas, Europe, Korea or Taiwan. The game logs straight into that region without showing its region picker. New installs default to a guess based on the phone's country. The game is also installed and updated to the build that region's realms run, which can differ between regions right after a patch.
 - **Resolution:** tap **Resolution** on the setup screen to choose 720p, 900p or 1080p. Adreno 740 devices default to 1080p and Adreno 8xx devices to 720p, which runs much smoother there. The game's resolution is set from this on every launch and reshaped to fit non-16:9 screens.
-- **Add-ons:** download an add-on's `.zip` on your device, then tap **Import Add-on** on the setup screen and pick it. It's installed into `_forever_/Interface/AddOns`, replacing any older copy. You can also copy add-on folders there yourself.
+- **Add-ons:** download an add-on's `.zip` on your device, then tap **Add-on** on the setup screen and pick it. It's installed into `_forever_/Interface/AddOns`, replacing any older copy. You can also copy add-on folders there yourself.
 
 ### Controls and signing in
 
 - **Controller:** built-in handheld controllers work in-game. WoW's own gamepad mode handles the mapping.
 - **In-game menu:** press Back (the button or the back swipe gesture) to open the sidebar. It has **Keyboard**, on-screen controls, performance overlay and **Exit**.
 - **Keyboard:** the sidebar's **Keyboard** opens the Android keyboard. On dual-screen devices like the Thor it appears on the bottom screen. Symbols like `@` work, and so does pasting.
-- **Battle.net Auto-Login:** configure credentials directly on the launcher setup screen (**Configure Login** / **Update Login**). Credentials are saved encrypted on-device via Android Keystore. On boot, the launcher generates `_forever_/login.txt`, which the WoW client automatically reads on startup to sign in natively without macro simulation or synthetic clicks. Use **Forget Saved Login** on the launcher setup screen to clear credentials and remove the login file.
+- **Battle.net Auto-Login:** configure credentials directly on the launcher setup screen (**Login**). Credentials are saved encrypted on-device via Android Keystore. On boot, the launcher generates `_forever_/login.txt`, which the WoW client automatically reads on startup to sign in natively without macro simulation or synthetic clicks. Use **Forget Login** on the launcher setup screen to clear credentials and remove the login file.
   - Authenticator codes still have to be entered by hand. The game keeps running when you switch apps, so you can grab a code from an authenticator app on the same device.
   - Each install shows Battle.net its own Windows PC identity (machine ID and a `DESKTOP-XXXXXXX` computer name), generated once and kept across updates. Reinstalling the app creates a new one, so Battle.net may treat it as a new device.
 

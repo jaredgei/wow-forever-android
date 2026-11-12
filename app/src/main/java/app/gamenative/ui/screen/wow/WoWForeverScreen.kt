@@ -683,26 +683,26 @@ fun WoWForeverScreen(
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
                     ) {
-                        LinkButton("Refresh Status", Icons.Default.Refresh) {
+                        LinkButton("Refresh", Icons.Default.Refresh) {
                             checkFiles()
                             checkVersionStatus()
                             checkAppUpdate()
                         }
                         if (!files.needsInstall) {
-                            LinkButton("Change Location", Icons.Default.FolderOpen) { folderPicker.launch(null) }
+                            LinkButton("Location", Icons.Default.FolderOpen) { folderPicker.launch(null) }
                             // Some file managers label zips as generic binary files, so both types are offered.
-                            LinkButton("Import Add-on", Icons.Default.Extension, enabled = !isLaunching && !isUpdating) {
+                            LinkButton("Add-on", Icons.Default.Extension, enabled = !isLaunching && !isUpdating) {
                                 addonPicker.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream"))
                             }
                         }
                         LinkButton(
-                            text = if (hasSavedLogin) "Update Login" else "Configure Login",
+                            text = "Login",
                             icon = Icons.Default.Key,
                         ) {
                             showLoginDialog = true
                         }
                         if (hasSavedLogin) {
-                            LinkButton("Forget Saved Login", Icons.Default.Delete) {
+                            LinkButton("Forget Login", Icons.Default.Delete) {
                                 BattleNetSignIn.forget(context)
                                 BattleNetSignIn.removeLoginFile(File(gamePath))
                                 hasSavedLogin = false
