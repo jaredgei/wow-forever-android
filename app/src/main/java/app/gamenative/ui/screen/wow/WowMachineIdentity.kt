@@ -30,12 +30,7 @@ internal data class WowMachineIdentity(
             return
         }
         // The editor copies and rescans the whole multi-MB file for every value, so it only runs when something differs.
-        val applied = listOf(
-            "\"MachineGuid\"=\"$machineGuid\"",
-            "\"InstallDate\"=dword:%08x".format(installDate),
-            "\"ComputerName\"=\"$computerName\"",
-        )
-        if (!systemReg.readText().let { reg -> applied.all { it in reg } }) {
+        if (!registryContainsIdentity(systemReg.readText())) {
             WineRegistryEditor(systemReg).use { registry ->
                 registry.setStringValue("Software\\Microsoft\\Cryptography", "MachineGuid", machineGuid)
                 CURRENT_VERSION_KEYS.forEach { registry.setDwordValue(it, "InstallDate", installDate) }
@@ -50,6 +45,31 @@ internal data class WowMachineIdentity(
         if (serialFile.parentFile?.isDirectory == true && serialFile.takeIf { it.isFile }?.readText()?.trim() != volumeSerial) {
             serialFile.writeText("$volumeSerial\n")
         }
+    }
+
+    /** Check every value in its own section; the same value elsewhere cannot make the prefix current. */
+    private fun registryContainsIdentity(reg: String): Boolean {
+        val expected = buildMap {
+            put("Software\\Microsoft\\Cryptography", mapOf("\"MachineGuid\"" to "\"$machineGuid\""))
+            CURRENT_VERSION_KEYS.forEach { put(it, mapOf("\"InstallDate\"" to "dword:%08x".format(installDate))) }
+            put(COMPUTER_NAME_KEY, mapOf("\"ComputerName\"" to "\"$computerName\""))
+            put(TCPIP_KEY, mapOf("\"Hostname\"" to "\"$computerName\"", "\"NV Hostname\"" to "\"$computerName\""))
+        }.mapKeys { (key, _) -> key.replace("\\", "\\\\") }
+        val matched = mutableSetOf<Pair<String, String>>()
+        var key = ""
+        for (line in reg.lineSequence()) {
+            if (line.startsWith("[")) {
+                val end = line.indexOf(']')
+                key = if (end > 0) line.substring(1, end) else ""
+                continue
+            }
+            val values = expected[key] ?: continue
+            val name = line.substringBefore('=')
+            val value = values[name] ?: continue
+            val field = key to name
+            if (line.substringAfter('=') == value) matched.add(field) else matched.remove(field)
+        }
+        return matched.size == expected.values.sumOf { it.size }
     }
 
     companion object {
