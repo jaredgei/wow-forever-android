@@ -23,7 +23,7 @@ public class Keyboard {
     private final XServer xServer;
 
     public interface OnKeyboardListener {
-        void onKeyPress(byte keycode, int keysym);
+        void onKeyPress(byte keycode, int keysym, boolean autoRepeat);
 
         void onKeyRelease(byte keycode);
     }
@@ -50,7 +50,11 @@ public class Keyboard {
     }
 
     public void setKeyPress(byte keycode, int keysym) {
-        triggerOnKeyPress(keycode, keysym);
+        setKeyPress(keycode, keysym, true);
+    }
+
+    public void setKeyPress(byte keycode, int keysym, boolean autoRepeat) {
+        triggerOnKeyPress(keycode, keysym, autoRepeat);
         pressedKeys.add(keycode);
         if (isModifier(keycode)) modifiersMask.set(getModifierFlag(keycode));
     }
@@ -71,9 +75,9 @@ public class Keyboard {
         onKeyboardListeners.remove(onKeyboardListener);
     }
 
-    private void triggerOnKeyPress(byte keycode, int keysym) {
+    private void triggerOnKeyPress(byte keycode, int keysym, boolean autoRepeat) {
         for (int i = onKeyboardListeners.size()-1; i >= 0; i--) {
-            onKeyboardListeners.get(i).onKeyPress(keycode, keysym);
+            onKeyboardListeners.get(i).onKeyPress(keycode, keysym, autoRepeat);
         }
     }
 
@@ -124,9 +128,13 @@ public class Keyboard {
             return false;
 
         if (action == KeyEvent.ACTION_DOWN) {
+            // Hardware keyboards already repeat held keys: Android sends repeated ACTION_DOWNs
+            // and stops them when the key is released or focus moves away. The X server's own
+            // repeat timer is left off here so a held key isn't repeated twice, and a release
+            // that never reaches us (e.g. focus moved mid-press) can't repeat a key forever.
             boolean syntheticShift = needsSyntheticShift(event);
-            if (syntheticShift) xServer.injectKeyPress(XKeycode.KEY_SHIFT_L);
-            xServer.injectKeyPress(xKeycode, printableKeysym(event));
+            if (syntheticShift) xServer.injectKeyPress(XKeycode.KEY_SHIFT_L, 0, false);
+            xServer.injectKeyPress(xKeycode, printableKeysym(event), false);
             if (syntheticShift) xServer.injectKeyRelease(XKeycode.KEY_SHIFT_L);
         } else if (action == KeyEvent.ACTION_UP) {
             xServer.injectKeyRelease(xKeycode);

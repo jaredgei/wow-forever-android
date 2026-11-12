@@ -32,7 +32,7 @@ public class InputDeviceManager implements Pointer.OnPointerMotionListener, Keyb
         @Override
         public void run() {
             if (xServer.keyboard.getPressedKeys().contains(currentRepeatingKeycode)) {
-                onKeyPress(currentRepeatingKeycode, currentRepeatingKeysym);
+                onKeyPress(currentRepeatingKeycode, currentRepeatingKeysym, true);
                 autoRepeatHandler.postDelayed(this, repeatRateMs);
             }
         }
@@ -221,7 +221,10 @@ public class InputDeviceManager implements Pointer.OnPointerMotionListener, Keyb
     }
 
     @Override
-    public void onKeyPress(byte keycode, int keysym) {
+    public void onKeyPress(byte keycode, int keysym, boolean autoRepeat) {
+        // Any new key press ends the previous key's repeat, as on a real keyboard.
+        autoRepeatHandler.removeCallbacks(autoRepeatRunnable);
+
         Window focusedWindow = xServer.windowManager.getFocusedWindow();
         if (focusedWindow == null) return;
         updatePointWindow();
@@ -251,10 +254,11 @@ public class InputDeviceManager implements Pointer.OnPointerMotionListener, Keyb
 
         eventWindow.sendEvent(Event.KEY_PRESS, new KeyPress(keycode, xServer.windowManager.rootWindow, eventWindow, child, x, y, localPoint[0], localPoint[1], keyButMask));
 
-        autoRepeatHandler.removeCallbacks(autoRepeatRunnable);
-        currentRepeatingKeycode = keycode;
-        currentRepeatingKeysym = keysym;
-        autoRepeatHandler.postDelayed(autoRepeatRunnable, repeatDelayMs);
+        if (autoRepeat) {
+            currentRepeatingKeycode = keycode;
+            currentRepeatingKeysym = keysym;
+            autoRepeatHandler.postDelayed(autoRepeatRunnable, repeatDelayMs);
+        }
     }
 
     @Override

@@ -276,8 +276,12 @@ public class XServer {
     }
 
     public void injectKeyPress(XKeycode xKeycode, int keysym) {
+        injectKeyPress(xKeycode, keysym, true);
+    }
+
+    public void injectKeyPress(XKeycode xKeycode, int keysym, boolean autoRepeat) {
         try (XLock lock = lock(Lockable.WINDOW_MANAGER, Lockable.INPUT_DEVICE)) {
-            keyboard.setKeyPress(xKeycode.getId(), keysym);
+            keyboard.setKeyPress(xKeycode.getId(), keysym, autoRepeat);
         }
     }
 
