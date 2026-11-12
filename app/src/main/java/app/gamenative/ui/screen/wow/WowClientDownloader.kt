@@ -10,11 +10,13 @@ import java.nio.ByteBuffer
 import java.security.DigestOutputStream
 import java.security.MessageDigest
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.zip.Inflater
+import javax.net.ssl.SSLException
 import timber.log.Timber
 
 object WowClientDownloader {
@@ -347,6 +349,10 @@ object WowClientDownloader {
 
     /** [servers] are HTTPS base URLs, e.g. "https://level3.ssl.blizzard.com". */
     private class Cdn(val servers: List<String>, val path: String) {
+        // Servers whose TLS handshake failed, e.g. Korea's blizzard.gcdn.cloudn.co.kr with its expired self-signed
+        // certificate, are skipped from then on instead of being retried for every file.
+        private val untrusted = ConcurrentHashMap.newKeySet<String>()
+
         fun require(kind: String, key: String): ByteArray {
             val bytes = fetch(kind, key) ?: throw IOException("CDN is missing $kind/$key")
             // Configs are named by their MD5, so they can be checked before anything is parsed from them. Data files
@@ -359,6 +365,7 @@ object WowClientDownloader {
             var failure: IOException? = null
             var missing = false
             for (server in servers) {
+                if (server in untrusted) continue
                 val request = Request.Builder()
                     .url("$server/$path/$kind/${key.substring(0, 2)}/${key.substring(2, 4)}/$key")
                     .apply { if (range != null) header("Range", "bytes=${range.first}-${range.last}") }
@@ -372,12 +379,16 @@ object WowClientDownloader {
                             else -> failure = IOException("HTTP ${response.code} from $server")
                         }
                     }
+                } catch (e: SSLException) {
+                    untrusted += server
+                    failure = e
                 } catch (e: IOException) {
                     failure = e
                 }
             }
-            // Only report a file as missing when every server that answered said so.
-            if (missing && failure == null) return null
+            // The servers mirror each other, so one that answers 404 settles it even if another failed. Client files
+            // are looked up as loose files first and are normally missing, before falling back to the archives.
+            if (missing) return null
             throw failure ?: IOException("No CDN servers for $path")
         }
     }
