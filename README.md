@@ -85,6 +85,7 @@ Once your game files and Battle.net credentials are configured, the app automati
 - The app creates a basic `WTF/Config.wtf` on first run and always sets `gxApi "D3D11"`, the renderer that works with DXVK.
 - **Region:** tap **Region** on the setup screen to choose Americas, Europe, Korea or Taiwan. The game logs straight into that region without showing its region picker. New installs default to a guess based on the phone's country. The game is also installed and updated to the build that region's realms run, which can differ between regions right after a patch.
 - **Resolution:** tap **Resolution** on the setup screen to choose 720p, 900p or 1080p. Adreno 740 devices default to 1080p and Adreno 8xx devices to 720p, which runs much smoother there. The game's resolution is set from this on every launch and reshaped to fit non-16:9 screens.
+- **Add-ons:** download an add-on's `.zip` on your device, then tap **Import Add-on** on the setup screen and pick it. It's installed into `_forever_/Interface/AddOns`, replacing any older copy. You can also copy add-on folders there yourself.
 
 ### Controls and signing in
 

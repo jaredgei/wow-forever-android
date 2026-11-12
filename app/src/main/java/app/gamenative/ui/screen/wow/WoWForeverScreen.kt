@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.PlayArrow
@@ -54,6 +55,7 @@ import app.gamenative.ui.theme.WowError
 import app.gamenative.ui.theme.WowGold
 import app.gamenative.ui.theme.WowMuted
 import app.gamenative.ui.theme.WowSubtle
+import app.gamenative.ui.util.SnackbarManager
 import app.gamenative.utils.AppUpdater
 import app.gamenative.utils.StorageUtils
 import app.gamenative.utils.renderReleaseNotes
@@ -78,6 +80,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import timber.log.Timber
 import java.io.File
+import java.io.IOException
 
 object WoWLauncherState {
     var shouldAutoLaunch = true
@@ -284,6 +287,30 @@ fun WoWForeverScreen(
             showStoragePermissionDialog = true
         } else if (ok) {
             checkVersionStatus()
+        }
+    }
+
+    val addonPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        errorMessage = null
+        scope.launch {
+            try {
+                val installed = withContext(Dispatchers.IO) {
+                    val zip = File(context.cacheDir, "addon-import.zip")
+                    try {
+                        context.contentResolver.openInputStream(uri)?.use { input -> zip.outputStream().use { input.copyTo(it) } }
+                            ?: throw IOException("Couldn't open the selected file")
+                        AddonImporter.install(zip, File(gamePath, "$FLAVOR_DIR/Interface/AddOns"))
+                    } finally {
+                        zip.delete()
+                    }
+                }
+                SnackbarManager.show("Installed ${installed.joinToString()}")
+            } catch (e: Exception) {
+                Timber.e(e, "Add-on import failed")
+                if (e.isPermissionDenied()) denyStorageAccess()
+                errorMessage = "Add-on import failed: ${e.message}"
+            }
         }
     }
 
@@ -663,6 +690,10 @@ fun WoWForeverScreen(
                         }
                         if (!files.needsInstall) {
                             LinkButton("Change Location", Icons.Default.FolderOpen) { folderPicker.launch(null) }
+                            // Some file managers label zips as generic binary files, so both types are offered.
+                            LinkButton("Import Add-on", Icons.Default.Extension, enabled = !isLaunching && !isUpdating) {
+                                addonPicker.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream"))
+                            }
                         }
                         LinkButton(
                             text = if (hasSavedLogin) "Update Login" else "Configure Login",
