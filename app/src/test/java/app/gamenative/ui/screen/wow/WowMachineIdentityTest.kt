@@ -66,6 +66,26 @@ class WowMachineIdentityTest {
         assertEquals(applied, systemReg.readText())
     }
 
+    @Test
+    fun restoreOriginal_undoesThePerInstallIdentity() {
+        val prefix = tempFolder.newFolder(".wine")
+        File(prefix, "drive_c").mkdirs()
+        val systemReg = File(prefix, "system.reg").apply { writeText(STOCK_SYSTEM_REG) }
+        WowMachineIdentity.generate(Random(1)).applyTo(prefix)
+
+        WowMachineIdentity.restoreOriginal(prefix)
+
+        WineRegistryEditor(systemReg).use { registry ->
+            assertEquals(WowMachineIdentity.ORIGINAL_MACHINE_GUID, registry.getStringValue("Software\\Microsoft\\Cryptography", "MachineGuid"))
+            assertEquals(WowMachineIdentity.ORIGINAL_INSTALL_DATE, registry.getDwordValue("Software\\Microsoft\\Windows NT\\CurrentVersion", "InstallDate"))
+            assertEquals(WowMachineIdentity.ORIGINAL_INSTALL_DATE, registry.getDwordValue("Software\\Wow6432Node\\Microsoft\\Windows NT\\CurrentVersion", "InstallDate"))
+            assertEquals("LOCALHOST", registry.getStringValue("System\\ControlSet001\\Control\\ComputerName\\ComputerName", "ComputerName"))
+            assertEquals("localhost", registry.getStringValue("System\\ControlSet001\\Services\\Tcpip\\Parameters", "Hostname"))
+            assertEquals(null, registry.getStringValue("System\\ControlSet001\\Services\\Tcpip\\Parameters", "NV Hostname"))
+        }
+        assertTrue(!File(prefix, "drive_c/.windows-serial").exists())
+    }
+
     private companion object {
         val STOCK_SYSTEM_REG = """
             WINE REGISTRY Version 2

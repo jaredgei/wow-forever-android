@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Extension
@@ -105,6 +106,7 @@ fun WoWForeverScreen(
     var hasSavedLogin by remember { mutableStateOf(BattleNetSignIn.load(context) != null) }
     var region by remember(gamePath, files) { mutableStateOf(GameRegion.current(context, gamePath)) }
     var resolution by remember { mutableStateOf(RenderResolution.current(context, gpu.screenSize)) }
+    var identityMode by remember { mutableStateOf(WowMachineIdentity.Mode.current(context)) }
     var showLoginDialog by remember { mutableStateOf(false) }
     var statusText by remember { mutableStateOf(READY_STATUS) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -511,6 +513,10 @@ fun WoWForeverScreen(
                             RenderResolution.save(context, it)
                             resolution = it
                         }
+                    }
+                    OptionMenu("Windows ID: ${identityMode.label}", Icons.Default.Computer, WowMachineIdentity.Mode.entries, identityMode, { it.label }, !isLaunching) {
+                        WowMachineIdentity.Mode.save(context, it)
+                        identityMode = it
                     }
 
                     errorMessage?.let {
@@ -1223,8 +1229,9 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, scr
 
     onStatus("Configuring ${gpu.label} container...")
     val containerManager = ContainerManager(context)
-    val config = containerConfig(gameRoot, gpu, screenSize, WowMachineIdentity.load(context))
+    val config = containerConfig(gameRoot, gpu, screenSize, WowMachineIdentity.hostnameEnv(context))
     val container = containerManager.getContainerById(CONTAINER_ID)
+    WowMachineIdentity.logPrefixIdentity(context, gameRoot, File(container?.rootDir ?: File(context.filesDir, "nonexistent"), ".wine"))
     if (container == null) {
         onStatus("Creating prefix environment (first boot)...")
         containerManager.createContainer(CONTAINER_ID, config)
@@ -1241,9 +1248,9 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, scr
     return CONTAINER_ID
 }
 
-private fun containerConfig(gameRoot: File, gpu: GpuProfile, screenSize: String, identity: WowMachineIdentity): JSONObject {
+private fun containerConfig(gameRoot: File, gpu: GpuProfile, screenSize: String, hostnameEnv: String): JSONObject {
     val samsungEnv = if (Build.MANUFACTURER.equals("samsung", ignoreCase = true)) " FD_DEV_FEATURES=enable_tp_ubwc_flag_hint=1" else ""
-    val envVars = "WRAPPER_MAX_IMAGE_COUNT=0 ZINK_DESCRIPTORS=lazy ZINK_DEBUG=compact,deck_emu MESA_SHADER_CACHE_DISABLE=false MESA_SHADER_CACHE_MAX_SIZE=512MB mesa_glthread=true WINEESYNC=0 MESA_VK_WSI_PRESENT_MODE=mailbox TU_DEBUG=${gpu.tuDebug} VKD3D_SHADER_MODEL=6_0 PULSE_LATENCY_MSEC=144 ${WowMachineIdentity.HOSTNAME_ENV}=${identity.computerName}$samsungEnv"
+    val envVars = "WRAPPER_MAX_IMAGE_COUNT=0 ZINK_DESCRIPTORS=lazy ZINK_DEBUG=compact,deck_emu MESA_SHADER_CACHE_DISABLE=false MESA_SHADER_CACHE_MAX_SIZE=512MB mesa_glthread=true WINEESYNC=0 MESA_VK_WSI_PRESENT_MODE=mailbox TU_DEBUG=${gpu.tuDebug} VKD3D_SHADER_MODEL=6_0 PULSE_LATENCY_MSEC=144$hostnameEnv$samsungEnv"
     return JSONObject().apply {
         put("id", CONTAINER_ID)
         put("name", "WoW Forever")
