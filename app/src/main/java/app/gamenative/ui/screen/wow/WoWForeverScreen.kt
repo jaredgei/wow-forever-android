@@ -1,6 +1,7 @@
 package app.gamenative.ui.screen.wow
 
 import android.content.Context
+import app.gamenative.ui.screen.wow.auth.BattleNetBrowserLogin
 import android.os.Build
 import android.os.Environment
 import android.view.WindowManager
@@ -103,6 +104,7 @@ fun WoWForeverScreen(
     var isLaunching by remember { mutableStateOf(false) }
     var launchJob by remember { mutableStateOf<Job?>(null) }
     var hasSavedLogin by remember { mutableStateOf(BattleNetSignIn.load(context) != null) }
+    var browserLogin by remember { mutableStateOf(BattleNetBrowserLogin.enabled(context)) }
     var region by remember(gamePath, files) { mutableStateOf(GameRegion.current(context, gamePath)) }
     var resolution by remember { mutableStateOf(RenderResolution.current(context, gpu.screenSize)) }
     var showLoginDialog by remember { mutableStateOf(false) }
@@ -696,10 +698,17 @@ fun WoWForeverScreen(
                             }
                         }
                         LinkButton(
-                            text = "Login",
+                            text = "Password login",
                             icon = Icons.Default.Key,
                         ) {
                             showLoginDialog = true
+                        }
+                        LinkButton(
+                            text = if (browserLogin) "Browser login: On (experimental)" else "Browser login: Off",
+                            icon = Icons.Default.Key,
+                        ) {
+                            browserLogin = !browserLogin
+                            BattleNetBrowserLogin.setEnabled(context, browserLogin)
                         }
                         if (hasSavedLogin) {
                             LinkButton("Forget Login", Icons.Default.Delete) {
@@ -1234,9 +1243,14 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, scr
     }
     check(containerManager.hasContainer(CONTAINER_ID)) { "Container creation failed. Check system storage and logs." }
     // Written last, so the password isn't on disk during the client download or container setup.
-    BattleNetSignIn.load(context)?.let { login ->
-        BattleNetSignIn.writeLoginFile(gameRoot, login)
-        BattleNetSignIn.startLoginWatcher(gameRoot)
+    if (BattleNetBrowserLogin.enabled(context)) {
+        // Even an empty login.txt can select the password path instead of the launcher session.
+        BattleNetSignIn.removeLoginFile(gameRoot)
+    } else {
+        BattleNetSignIn.load(context)?.let { login ->
+            BattleNetSignIn.writeLoginFile(gameRoot, login)
+            BattleNetSignIn.startLoginWatcher(gameRoot)
+        }
     }
     return CONTAINER_ID
 }
