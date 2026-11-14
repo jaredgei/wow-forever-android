@@ -436,7 +436,12 @@ static int routable_address(char *address, size_t len)
 
 struct hostent *gethostbyname(const char *name)
 {
+    static __thread struct hostent local_host;
+    static __thread char local_hostname[NI_MAXHOST];
     char address[INET_ADDRSTRLEN];
+    const char *resolved, *hostname;
+    struct hostent *host;
+    size_t hostname_length;
 
     pthread_once(&resolver_once, resolve_next_symbols);
     if (!next_gethostbyname)
@@ -444,13 +449,33 @@ struct hostent *gethostbyname(const char *name)
         h_errno = NO_RECOVERY;
         return NULL;
     }
-    return next_gethostbyname(local_name(name, address, sizeof(address)));
+    resolved = local_name(name, address, sizeof(address));
+    host = next_gethostbyname(resolved);
+    if (!host || resolved == name) return host;
+
+    hostname = configured_hostname();
+    hostname_length = strlen(hostname) + 1;
+    if (hostname_length > sizeof(local_hostname))
+    {
+        h_errno = NO_RECOVERY;
+        errno = ERANGE;
+        return NULL;
+    }
+    /* Keep libc's hostent and its strings untouched. The address and alias
+     * arrays retain the usual gethostbyname lifetime; only h_name differs. */
+    local_host = *host;
+    memcpy(local_hostname, hostname, hostname_length);
+    local_host.h_name = local_hostname;
+    return &local_host;
 }
 
 int gethostbyname_r(const char *name, struct hostent *ret, char *buf,
                     size_t buflen, struct hostent **result, int *h_errnop)
 {
     char address[INET_ADDRSTRLEN];
+    const char *resolved, *hostname;
+    size_t hostname_length;
+    int status;
 
     pthread_once(&resolver_once, resolve_next_symbols);
     if (!next_gethostbyname_r)
@@ -459,8 +484,30 @@ int gethostbyname_r(const char *name, struct hostent *ret, char *buf,
         *h_errnop = NO_RECOVERY;
         return ENOSYS;
     }
-    return next_gethostbyname_r(local_name(name, address, sizeof(address)), ret,
-                                buf, buflen, result, h_errnop);
+    resolved = local_name(name, address, sizeof(address));
+    if (resolved == name)
+        return next_gethostbyname_r(name, ret, buf, buflen, result, h_errnop);
+
+    /* Reserve the canonical name in the caller's buffer, outside the space
+     * libc uses for the numeric address, aliases and pointer arrays. */
+    hostname = configured_hostname();
+    hostname_length = strlen(hostname) + 1;
+    if (buflen < hostname_length)
+    {
+        *result = NULL;
+        *h_errnop = NETDB_INTERNAL;
+        errno = ERANGE;
+        return ERANGE;
+    }
+    status = next_gethostbyname_r(resolved, ret, buf, buflen - hostname_length,
+                                 result, h_errnop);
+    if (status == 0 && *result)
+    {
+        char *canonical = buf + buflen - hostname_length;
+        memcpy(canonical, hostname, hostname_length);
+        (*result)->h_name = canonical;
+    }
+    return status;
 }
 
 /*
