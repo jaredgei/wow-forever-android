@@ -1,0 +1,120 @@
+# Builds the release APK, signs it with the release key from the repository's Actions secrets, and publishes it as a
+# GitHub release. Run by hand (Actions tab, or the API) only; nothing triggers it automatically.
+#
+# Secrets (Settings > Secrets and variables > Actions):
+#   RELEASE_KEYSTORE_BASE64  the keystore file, base64-encoded (base64 -w0 release.jks, or base64 -i release.jks on macOS)
+#   RELEASE_STORE_PASSWORD   the keystore password
+#   RELEASE_KEY_ALIAS        the key alias
+#   RELEASE_KEY_PASSWORD     the key password
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag or commit to build
+        required: true
+        default: main
+      tag:
+        description: Release tag to create, e.g. v2.4.2 or v2.4.1-test1
+        required: true
+      title:
+        description: Release title (defaults to "WoW Forever for Android <tag>")
+        required: false
+      notes:
+        description: Release notes (Markdown)
+        required: false
+      prerelease:
+        description: Pre-release (test builds; the in-app updater ignores these)
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Install SDK components
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platforms;android-36" "build-tools;35.0.0" "ndk;27.3.13750724" "cmake;3.22.1" > /dev/null
+
+      - name: Check the version matches the tag
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          version=$(sed -n 's/^ *versionName = "\(.*\)"/\1/p' app/build.gradle.kts)
+          if [ "v$version" != "$TAG" ]; then
+            echo "::error::versionName is $version but the tag is $TAG"
+            exit 1
+          fi
+
+      - name: Fetch bundled components
+        run: tools/fetch_components.sh
+
+      - name: Set up signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then echo "::error::RELEASE_KEYSTORE_BASE64 is not set"; exit 1; fi
+          mkdir -p app/keystores
+          echo "$KEYSTORE_BASE64" | base64 -d > app/keystores/release.jks
+          {
+            echo "storeFile=keystores/release.jks"
+            echo "storePassword=$STORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > app/keystores/keystore.properties
+
+      - name: Build
+        run: ./gradlew --no-daemon :app:assembleModernRelease
+
+      - name: Verify the signature
+        run: |
+          apk=app/build/outputs/apk/modern/release/app-modern-release.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$apk" | tee certs.txt
+          if grep -q "CN=Android Debug" certs.txt; then echo "::error::APK is debug-signed"; exit 1; fi
+          cp "$apk" WoW-Forever.apk
+
+      - name: Remove signing files
+        if: always()
+        run: rm -rf app/keystores/release.jks app/keystores/keystore.properties
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          TITLE: ${{ inputs.title }}
+          NOTES: ${{ inputs.notes }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          sha=$(git rev-parse HEAD)
+          flags=()
+          if [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease); else flags+=(--latest); fi
+          gh release create "$TAG" WoW-Forever.apk \
+            --target "$sha" \
+            --title "${TITLE:-WoW Forever for Android $TAG}" \
+            --notes "${NOTES:-}" \
+            "${flags[@]}"
