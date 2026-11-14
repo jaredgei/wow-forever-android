@@ -3,6 +3,7 @@ package app.gamenative.ui.screen.wow
 import android.content.Context
 import android.os.Build
 import android.os.Environment
+import android.os.SystemClock
 import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -519,6 +520,17 @@ fun WoWForeverScreen(
                         identityMode = it
                     }
 
+                    longUptimeDays()?.let { days ->
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = "Your device has been on for $days days. After about 49 days WoW's clock stops, " +
+                                "so the login screen stays blank and nothing loads. Restart your device before playing.",
+                            fontSize = 12.sp,
+                            color = WowError,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
+
                     errorMessage?.let {
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(text = "Error: $it", fontSize = 12.sp, color = WowError, fontWeight = FontWeight.Medium)
@@ -928,6 +940,16 @@ fun WoWForeverScreen(
 }
 
 private fun prefs(context: Context) = context.getSharedPreferences("wow_forever", Context.MODE_PRIVATE)
+
+/**
+ * Wine's tick count follows the device's uptime, and once it passes 2^32 ms (about 49.7 days) WoW's frame time stops
+ * advancing: the login UI never fades in and auto-login never starts (#36). A restart fixes it, so the launcher says so.
+ */
+internal fun longUptimeDays(uptimeMs: Long = SystemClock.elapsedRealtime()): Long? =
+    if (uptimeMs >= UPTIME_WARNING_MS) uptimeMs / 86_400_000L else null
+
+// A little under 2^32 ms, so the warning shows before the clock stops rather than after.
+private const val UPTIME_WARNING_MS = 48L * 86_400_000L
 
 /**
  * The Battle.net region WoW logs into. Without the Battle.net app to pick one, WoW stops at a region picker before
