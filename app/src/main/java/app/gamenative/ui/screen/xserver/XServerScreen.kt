@@ -2207,7 +2207,7 @@ fun XServerScreen(
                                 )
                             }
                             // After the prefix setup above, which can re-extract a stock system.reg.
-                            WowMachineIdentity.applyCurrent(context, File(container.rootDir, ".wine"))
+                            WowMachineIdentity.load(context).applyTo(File(container.rootDir, ".wine"))
 
                             runBlocking {
                                 extractGraphicsDriverFiles(
