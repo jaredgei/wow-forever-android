@@ -71,6 +71,10 @@ jobs:
       - name: Fetch bundled components
         run: tools/fetch_components.sh
 
+      # The Secrets Gradle plugin refuses to configure the project without local.properties.
+      - name: Write local.properties
+        run: echo "sdk.dir=$ANDROID_HOME" > local.properties
+
       - name: Set up signing
         env:
           KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
