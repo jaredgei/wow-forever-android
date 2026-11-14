@@ -450,6 +450,15 @@ application and covered by its GPL-3.0 licence.
 **Sound**: [Source](https://pixabay.com/sound-effects/film-special-effects-achievement-badge-pop-sound-1-547860/)
 
 
+## Scuffle browser authentication and Windows device identity
+
+The browser-login protocol and Windows session handoff are adapted from
+[nyrda/scuffle](https://github.com/nyrda/scuffle), commit
+`5efccb44777bba7e28e70ef782564b713e7373b5`, copyright (c) 2026 nyrda, MIT license.
+`tools/wow-session-bridge/device_id.c` and `device_id.h` are copied unchanged.
+The complete MIT notice is in `tools/wow-session-bridge/LICENSE.scuffle` and is
+also bundled in the APK at `assets/LICENSE.scuffle`.
+
 ## Samsung Performance SDK
 
 This project bundles `app/src/main/lib/perfsdk-v1.0.0.jar`, the Samsung Performance SDK
