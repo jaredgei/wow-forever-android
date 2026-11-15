@@ -71,6 +71,15 @@ jobs:
       - name: Fetch bundled components
         run: tools/fetch_components.sh
 
+      # The browser-login helper ships only as built here from the reviewed source, never as a committed binary.
+      - name: Build the browser-login helper
+        if: hashFiles('tools/wow-session-bridge/build.sh') != ''
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mingw-w64 > /dev/null
+          sh tools/wow-session-bridge/build.sh x86_64-w64-mingw32-gcc app/src/main/assets/wow-session-bridge.exe
+          sha256sum app/src/main/assets/wow-session-bridge.exe
+
       # The Secrets Gradle plugin refuses to configure the project without local.properties.
       - name: Write local.properties
         run: echo "sdk.dir=$ANDROID_HOME" > local.properties
