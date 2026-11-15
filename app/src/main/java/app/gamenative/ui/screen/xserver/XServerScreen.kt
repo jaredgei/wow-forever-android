@@ -105,6 +105,7 @@ import app.gamenative.ui.component.parsePositiveFpsLimit
 import app.gamenative.ui.data.PerformanceHudConfig
 import app.gamenative.ui.data.PerformanceHudSize
 import app.gamenative.ui.data.XServerState
+import app.gamenative.GameSessionService
 import app.gamenative.ui.screen.wow.WowMachineIdentity
 import app.gamenative.ui.widget.PerformanceHudView
 import app.gamenative.utils.AssetUtils
@@ -2236,6 +2237,7 @@ fun XServerScreen(
                                 onGameLaunchError,
                                 isOffline,
                             )
+                            GameSessionService.ensureStarted(context.applicationContext)
 
                             if (!PluviaApp.isActivityInForeground && !neverSuspend) {
                                 PluviaApp.xEnvironment?.onPause()

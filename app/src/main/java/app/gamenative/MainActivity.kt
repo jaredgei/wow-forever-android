@@ -159,6 +159,9 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         PluviaApp.isActivityInForeground = true
+        // The game may have finished booting while the app was in the background, when Android doesn't allow
+        // starting a foreground service.
+        if (PluviaApp.xEnvironment != null) GameSessionService.ensureStarted(applicationContext)
 
         // Re-apply immersive mode to ensure fullscreen persists
         if (!desiredSystemUiVisible) {
