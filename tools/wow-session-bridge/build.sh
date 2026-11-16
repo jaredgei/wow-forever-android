@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 bridge_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-compiler=${1:-x86_64-w64-mingw32-gcc}
+compiler=${1:-aarch64-w64-mingw32-clang}
 output=${2:-"$bridge_dir/build/wow-session-bridge.exe"}
 build_dir=$(mktemp -d)
 trap 'rm -rf "$build_dir"' EXIT HUP INT TERM

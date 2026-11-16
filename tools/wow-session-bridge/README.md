@@ -52,11 +52,11 @@ mutual authentication return an exit code without sending a status frame.
 
 ```sh
 tools/wow-session-bridge/test.sh
-tools/wow-session-bridge/build.sh /path/to/x86_64-w64-mingw32-gcc /path/to/wow-session-bridge.exe
-python3 tools/wow-session-bridge/test_integration.py --wine /path/to/wine64 --compiler /path/to/x86_64-w64-mingw32-gcc
+tools/wow-session-bridge/build.sh /path/to/aarch64-w64-mingw32-clang /path/to/wow-session-bridge.exe
+python3 tools/wow-session-bridge/test_integration.py --wine /path/to/wine64 --compiler /path/to/aarch64-w64-mingw32-clang
 ```
 
-Build with LLVM-MinGW 20261104 (Clang 23.1.5), x86_64 Windows UCRT. The x86_64 helper
+Build with LLVM-MinGW 20261104 (Clang 23.1.5), ARM64 Windows UCRT. The ARM64 helper
 uses the Wine emulator for CPUID and Windows APIs. Its fingerprint must match the
 authentication platform used by the Android broker; ARM64 client compatibility
 still needs on-device validation. PE timestamps are disabled for reproducibility.
@@ -64,7 +64,7 @@ The integration test creates a disposable Wine prefix and uses a synthetic token
 with a dummy child to verify transport, DPAPI, launch refusal, and cleanup. It does
 not contact Battle.net or use account credentials.
 
-`device_id.c` and `device_id.h` are copied unchanged from
+`device_id.h` is copied unchanged, and `device_id.c` is unchanged apart from an ARM64 branch (no CPUID on ARM64), from
 [nyrda/scuffle](https://github.com/nyrda/scuffle), commit
 `5efccb44777bba7e28e70ef782564b713e7373b5`, under the MIT license in
 `LICENSE.scuffle`. Its output calls are redirected at compile time to a bounded

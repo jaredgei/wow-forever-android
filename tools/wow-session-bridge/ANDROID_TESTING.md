@@ -7,8 +7,8 @@ ARM64 game accepts the token. The browser mode is off by default.
 
 ## Implemented path
 
-1. Start the x86_64 helper in the same Wine prefix as the ARM64 game. It computes
-   Scuffle's Windows device description from the actual emulated x64 context.
+1. Start the ARM64 helper in the same Wine prefix as the ARM64 game. It computes
+   Scuffle's Windows device description from the actual Windows-on-ARM context.
 2. Authenticate the Android/helper loopback connection with distinct SHA256
    client/server proofs derived from a random 256-bit capability. The capability
    is held in app-private storage and deleted after the helper reads it.
@@ -25,7 +25,7 @@ ARM64 game accepts the token. The browser mode is off by default.
    credential when the child exits normally. A new launch always requests a new
    token. There is no password fallback, token in argv, or plaintext token file.
 
-The x64 broker to ARM64 game transition is an explicit compatibility question.
+The helper and the game are both ARM64 and request a `WinA` session, the platform the game itself reports.
 This implementation does not invent a `WinA` fingerprint or treat an OAuth
 access token as a WoW game credential. It uses no desktop companion and does not
 read the Battle.net desktop app's stored credentials.
@@ -54,7 +54,7 @@ read the Battle.net desktop app's stored credentials.
 ```sh
 ./gradlew :app:testModernDebugUnitTest :app:assembleModernDebug
 tools/wow-session-bridge/test.sh
-tools/wow-session-bridge/build.sh /path/to/x86_64-w64-mingw32-gcc \
+tools/wow-session-bridge/build.sh /path/to/aarch64-w64-mingw32-clang \
   app/src/main/assets/wow-session-bridge.exe
 ```
 

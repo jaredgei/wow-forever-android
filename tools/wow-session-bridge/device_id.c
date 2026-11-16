@@ -8,7 +8,9 @@
 #include <windows.h>
 #include <wincrypt.h>
 #include <iphlpapi.h>
+#if defined(__x86_64__) || defined(__i386__)
 #include <cpuid.h>
+#endif
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -138,6 +140,7 @@ int pipe_device(void) {
         version.dwMajorVersion, version.dwMinorVersion, version.dwBuildNumber,
         (const char *)version.szCSDVersion);
     value[12] = device_hash(buffer, strlen(buffer));
+#if defined(__x86_64__) || defined(__i386__)
     unsigned a, b, c, d;
     __cpuid(0, a, b, c, d);
     char vendor[13] = {0};
@@ -166,6 +169,25 @@ int pipe_device(void) {
         }
         value[18] = device_hash(brand, strlen((char *)brand));
     }
+#else
+    /* WoW Forever for Android: ARM64 Windows has no CPUID instruction. Windows on ARM keeps the processor's vendor
+     * and name in the registry instead, so those are hashed in place of the CPUID strings; the CPUID feature words
+     * (CVRA, CFTC, CFTD, CEFC, CEFD) keep their "absent" value. */
+    HKEY processor = NULL;
+    if (!RegOpenKeyExA(HKEY_LOCAL_MACHINE, "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", 0,
+                       KEY_QUERY_VALUE, &processor)) {
+        char text[256];
+        DWORD length = sizeof(text) - 1;
+        memset(text, 0, sizeof(text));
+        if (!RegQueryValueExA(processor, "VendorIdentifier", NULL, NULL, (BYTE *)text, &length))
+            value[19] = device_hash(text, strlen(text));
+        length = sizeof(text) - 1;
+        memset(text, 0, sizeof(text));
+        if (!RegQueryValueExA(processor, "ProcessorNameString", NULL, NULL, (BYTE *)text, &length))
+            value[18] = device_hash(text, strlen(text));
+        RegCloseKey(processor);
+    }
+#endif
     ULONG bytes = sizeof(IP_ADAPTER_INFO);
     IP_ADAPTER_INFO *adapters = malloc(bytes);
     if (!adapters) return 1;
