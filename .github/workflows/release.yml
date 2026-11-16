@@ -74,10 +74,17 @@ jobs:
       # The browser-login helper ships only as built here from the reviewed source, never as a committed binary.
       - name: Build the browser-login helper
         if: hashFiles('tools/wow-session-bridge/build.sh') != ''
+        env:
+          LLVM_MINGW: llvm-mingw-20261104-ucrt-ubuntu-22.04-x86_64
+          LLVM_MINGW_SHA256: 919380403de87dca3c581c2053230cd298af5e891286628ba0613b7fed370926
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq mingw-w64 > /dev/null
-          sh tools/wow-session-bridge/build.sh x86_64-w64-mingw32-gcc app/src/main/assets/wow-session-bridge.exe
+          # The helper runs next to the ARM64 game, so it is an ARM64 Windows program; GCC's MinGW can't target that.
+          curl -fsSL -o "$RUNNER_TEMP/llvm-mingw.tar.xz" \
+            "https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/$LLVM_MINGW.tar.xz"
+          echo "$LLVM_MINGW_SHA256  $RUNNER_TEMP/llvm-mingw.tar.xz" | sha256sum -c -
+          tar -xJf "$RUNNER_TEMP/llvm-mingw.tar.xz" -C "$RUNNER_TEMP"
+          sh tools/wow-session-bridge/build.sh "$RUNNER_TEMP/$LLVM_MINGW/bin/aarch64-w64-mingw32-clang" \
+            app/src/main/assets/wow-session-bridge.exe
           sha256sum app/src/main/assets/wow-session-bridge.exe
 
       # The Secrets Gradle plugin refuses to configure the project without local.properties.

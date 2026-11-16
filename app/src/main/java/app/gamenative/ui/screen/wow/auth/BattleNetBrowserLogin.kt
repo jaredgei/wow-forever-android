@@ -151,8 +151,8 @@ internal object BattleNetBrowserLogin {
     }
 
     private fun <T> withClient(attempt: Attempt, action: (BgsClient) -> T): T {
-        // The bridge reports the real x64 Wine context; do not fabricate ARM64 CPU fields.
-        val client = BgsClient(attempt.host, platform = "Wn64")
+        // The ARM64 helper reports the real Windows-on-ARM context, the same platform as the ARM64 game client.
+        val client = BgsClient(attempt.host, platform = "WinA")
         attempt.client.set(client)
         try {
             if (attempt.cancelled) throw CancellationException()
