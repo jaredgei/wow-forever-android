@@ -79,14 +79,18 @@ public class SysVSharedMemory {
         }
     }
 
+    // Called from the SysV SHM server thread while the X server thread attaches/detaches: without the lock,
+    // detach() could read SparseArray's internal DELETED marker and crash with a ClassCastException.
     public void delete(int shmid) {
-        SHMemory shmemory = shmemories.get(shmid);
-        if (shmemory != null) {
-            if (SHMemory.access$000(shmemory) != -1) {
-                XConnectorEpoll.closeFd(SHMemory.access$000(shmemory));
-                SHMemory.access$002(shmemory, -1);
+        synchronized (shmemories) {
+            SHMemory shmemory = shmemories.get(shmid);
+            if (shmemory != null) {
+                if (SHMemory.access$000(shmemory) != -1) {
+                    XConnectorEpoll.closeFd(SHMemory.access$000(shmemory));
+                    SHMemory.access$002(shmemory, -1);
+                }
+                shmemories.remove(shmid);
             }
-            shmemories.remove(shmid);
         }
     }
 
