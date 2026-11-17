@@ -23,6 +23,44 @@ static int device_overflow;
 
 /* Only device_id.c is compiled with printf/puts redirected to these bounded
  * sinks. Its fingerprint algorithm remains the upstream file byte-for-byte. */
+/* Diagnostics for device testing: one line per step, appended to Logs\BrowserLogin.log next to the game, which the
+ * player can open and post. Only step numbers and Windows error codes are written, never credentials or tokens. */
+static WCHAR diag_path[MAX_PATH * 4];
+
+static void diag_init(const WCHAR *game_exe) {
+    size_t length = wcslen(game_exe);
+    if (length + 32 >= sizeof(diag_path) / sizeof(diag_path[0])) return;
+    wcscpy(diag_path, game_exe);
+    WCHAR *separator = wcsrchr(diag_path, L'\\');
+    if (!separator) { diag_path[0] = 0; return; }
+    wcscpy(separator, L"\\Logs");
+    CreateDirectoryW(diag_path, NULL);
+    wcscat(diag_path, L"\\BrowserLogin.log");
+}
+
+static void diag(const char *format, ...) {
+    if (!diag_path[0]) return;
+    char line[256];
+    SYSTEMTIME now;
+    GetLocalTime(&now);
+    int used = snprintf(line, sizeof(line), "%02d:%02d:%02d helper: ", now.wHour, now.wMinute, now.wSecond);
+    if (used < 0) return;
+    va_list arguments;
+    va_start(arguments, format);
+    int added = vsnprintf(line + used, sizeof(line) - (size_t)used - 2, format, arguments);
+    va_end(arguments);
+    if (added < 0) return;
+    used += added < (int)(sizeof(line) - (size_t)used - 2) ? added : (int)(sizeof(line) - (size_t)used - 3);
+    line[used++] = '\r';
+    line[used++] = '\n';
+    HANDLE file = CreateFileW(diag_path, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
+                              OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (file == INVALID_HANDLE_VALUE) return;
+    DWORD written = 0;
+    WriteFile(file, line, (DWORD)used, &written, NULL);
+    CloseHandle(file);
+}
+
 int bridge_device_printf(const char *format, ...) {
     if (device_overflow) return -1;
     va_list arguments;
@@ -128,7 +166,10 @@ int wmain(int argc, WCHAR **argv) {
     PROCESS_INFORMATION child = {0};
     int result = 2, winsock_started = 0, mutex_owned = 0, authenticated = 0, owns_token = 0;
     WCHAR directory[32768], command[BRIDGE_COMMAND_LIMIT] = {0};
+    if (argc >= 3) diag_init(argv[2]);
+    diag("started (%d arguments)", argc);
     if (argc < 3 || !read_config(argv[1], &port, nonce)) goto done;
+    diag("read the launch request");
 
     /* The registry handoff is shared by all games in this Wine user/prefix.
      * Hold ownership until the child exits so one launch cannot replace another. */
@@ -162,6 +203,7 @@ int wmain(int argc, WCHAR **argv) {
         !transfer(peer, received_proof, sizeof(received_proof), 0) ||
         !bridge_equal_nonce(server_proof, received_proof)) goto done;
     authenticated = 1;
+    diag("connected to the app");
     SecureZeroMemory(client_proof, sizeof(client_proof));
     SecureZeroMemory(server_proof, sizeof(server_proof));
     SecureZeroMemory(received_proof, sizeof(received_proof));
@@ -172,6 +214,7 @@ int wmain(int argc, WCHAR **argv) {
     SecureZeroMemory(device_json, sizeof(device_json));
     result = 8;
     if (!receive_token(peer, token, &token_size)) goto done;
+    diag("received the game session");
 
     result = 9;
     if (wcslen(argv[2]) >= sizeof(directory) / sizeof(directory[0])) goto done;
@@ -212,6 +255,7 @@ int wmain(int argc, WCHAR **argv) {
     /* No handles or credentials from the transport are inherited by the game. */
     if (!CreateProcessW(argv[2], command, NULL, NULL, FALSE, DETACHED_PROCESS,
                          NULL, directory, &startup, &child)) goto done;
+    diag("started the game");
     (void)send_frame(peer, "STARTED", 7);
     closesocket(peer);
     peer = INVALID_SOCKET;
@@ -220,6 +264,8 @@ int wmain(int argc, WCHAR **argv) {
     result = 0;
 
 done:
+    if (result) diag("stopped at step %d (Windows error %lu)", result, (unsigned long)GetLastError());
+    else diag("the game exited");
     SecureZeroMemory(nonce, sizeof(nonce));
     SecureZeroMemory(client_proof, sizeof(client_proof));
     SecureZeroMemory(server_proof, sizeof(server_proof));
