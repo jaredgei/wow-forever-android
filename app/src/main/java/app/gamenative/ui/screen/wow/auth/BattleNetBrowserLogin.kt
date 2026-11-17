@@ -85,7 +85,9 @@ internal object BattleNetBrowserLogin {
             check(request.setReadable(true, true) && request.setWritable(true, true)) {
                 "Cannot protect the browser login request"
             }
-            val attempt = Attempt(bridge, request, "${region.name}.actual.battle.net", build)
+            val log = File(gameRoot, "${WowClientDownloader.FLAVOR_DIR}/Logs/BrowserLogin.log")
+            val attempt = Attempt(bridge, request, "${region.name}.actual.battle.net", build, log)
+            diag(attempt, "browser login started (app ${app.gamenative.BuildConfig.VERSION_NAME}, ${region.name}, build $build)")
             active = attempt
             mutableUi.value = Ui.Waiting("Starting Battle.net browser login…")
             // One deadline covers Wine startup, queues and browser interaction, below the helper's 15 minutes.
@@ -106,15 +108,19 @@ internal object BattleNetBrowserLogin {
 
     private suspend fun run(attempt: Attempt) {
         try {
+            diag(attempt, "waiting for the helper to connect")
             attempt.bridge.accept().use { peer ->
+                diag(attempt, "helper connected")
                 val device = peer.device().also { attempt.device.set(it) }
                 validateDevice(device)
                 val url = withClient(attempt) { client ->
                     client.connect()
                     client.webChallenge(device, attempt.build)
                 }
+                diag(attempt, "showing the Battle.net sign-in page")
                 publish(attempt, Ui.Browser(url))
                 val ticket = withTimeout(15 * 60_000L) { attempt.ticket.await() }
+                diag(attempt, "sign-in page finished")
                 try {
                     publish(attempt, Ui.Waiting("Completing Battle.net sign-in…"))
                     // A fresh connection avoids holding a BGS socket open while the user handles CAPTCHA or 2FA.
@@ -124,6 +130,7 @@ internal object BattleNetBrowserLogin {
                         client.verifyAndGenerateGameToken(ticket)
                     }
                     try {
+                        diag(attempt, "Battle.net issued a game session; handing it to the helper")
                         publish(attempt, Ui.Waiting("Starting WoW with the Battle.net session…"))
                         peer.launch(token)
                     } finally {
@@ -133,6 +140,7 @@ internal object BattleNetBrowserLogin {
                     ticket.fill(0)
                     device.fill(0)
                 }
+                diag(attempt, "the game started with the Battle.net session")
                 publish(attempt, Ui.Idle)
             }
         } catch (_: TimeoutCancellationException) {
@@ -140,8 +148,11 @@ internal object BattleNetBrowserLogin {
         } catch (_: CancellationException) {
             // User cancellation does not turn into a password-login attempt.
         } catch (error: BgsException) {
+            diag(attempt, "Battle.net error: ${error.message}")
             fail(attempt, error.message ?: "Battle.net sign-in failed.")
-        } catch (_: Exception) {
+        } catch (error: Exception) {
+            // The exception type only: messages can carry provider payloads or addresses.
+            diag(attempt, "stopped: ${error.javaClass.simpleName}")
             // Never expose provider payloads, redirect URLs, credentials or arbitrary peer output.
             fail(attempt, "Browser sign-in could not start the game. You can retry or switch back to password login in the launcher.")
         } finally {
@@ -169,6 +180,15 @@ internal object BattleNetBrowserLogin {
         val json = JSONObject(device.toString(Charsets.UTF_8))
         check(json.keys().asSequence().toSet() == expected) { "Invalid device description" }
         expected.forEach { check(json.getLong(it) in 0..0xffff_ffffL) { "Invalid device description" } }
+    }
+
+    /** Appends a step to the game folder's BrowserLogin.log for device testing. Never pass credentials or URLs. */
+    private fun diag(attempt: Attempt, message: String) {
+        runCatching {
+            attempt.log.parentFile?.mkdirs()
+            val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.ROOT).format(java.util.Date())
+            attempt.log.appendText("$time app: $message\n")
+        }
     }
 
     @Synchronized
@@ -229,12 +249,21 @@ internal object BattleNetBrowserLogin {
     fun guestExited() {
         val attempt = active
         if (attempt != null && mutableUi.value !is Ui.Idle && mutableUi.value !is Ui.Failed) {
-            mutableUi.value = Ui.Failed("The Wine login helper stopped before sign-in completed.")
+            diag(attempt, "the Wine side exited before sign-in completed")
+            mutableUi.value = Ui.Failed(
+                "The Wine login helper stopped before sign-in completed. Details are in _forever_/Logs/BrowserLogin.log.",
+            )
         }
         cancel(preserveFailure = true)
     }
 
-    private class Attempt(val bridge: SessionBridge, val request: File, val host: String, val build: Int) {
+    private class Attempt(
+        val bridge: SessionBridge,
+        val request: File,
+        val host: String,
+        val build: Int,
+        val log: File,
+    ) {
         val ticket = CompletableDeferred<ByteArray>()
         val client = AtomicReference<BgsClient?>()
         val ticketBytes = AtomicReference<ByteArray?>()
