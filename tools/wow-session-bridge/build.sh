@@ -15,7 +15,9 @@ mkdir -p "$(dirname -- "$output")"
 "$compiler" -std=c11 -Os -Wall -Wextra -ffile-prefix-map="$bridge_dir"=. \
     -Dprintf=bridge_device_printf -Dputs=bridge_device_puts \
     -c "$bridge_dir/device_id.c" -o "$build_dir/device_id.o"
-"$compiler" -municode -static -s -Wl,--no-insert-timestamp -Wl,--build-id=none \
+# -mwindows: a console program gets a console window in the Wine desktop, and it stays on the screen in front of
+# the game while the game loads. The helper prints nothing, so it needs no console.
+"$compiler" -municode -mwindows -static -s -Wl,--no-insert-timestamp -Wl,--build-id=none \
     "$build_dir/bridge.o" "$build_dir/protocol.o" "$build_dir/device_id.o" \
-    -lws2_32 -lcrypt32 -ladvapi32 -liphlpapi -o "$output"
+    -lws2_32 -lcrypt32 -ladvapi32 -liphlpapi -luser32 -o "$output"
 printf 'Built %s\n' "$output"

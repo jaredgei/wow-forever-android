@@ -152,6 +152,46 @@ static int no_login_file(const WCHAR *directory) {
     return GetLastError() == ERROR_FILE_NOT_FOUND;
 }
 
+struct game_window {
+    DWORD process;
+    HWND window;
+};
+
+static BOOL CALLBACK find_game_window(HWND window, LPARAM parameter) {
+    struct game_window *game = (struct game_window *)parameter;
+    DWORD process = 0;
+    GetWindowThreadProcessId(window, &process);
+    if (process != game->process || !IsWindowVisible(window) || GetWindow(window, GW_OWNER)) return TRUE;
+    game->window = window;
+    return FALSE;
+}
+
+/* When explorer starts the game itself, the game's window gets the foreground. Started from this helper it does
+ * not: the foreground stays with the Wine desktop's taskbar (Shell_TrayWnd), and the game holds its sign-in dialog
+ * back until the first tap. So the helper hands the foreground to the game's window when that appears, and again
+ * for a few seconds while the game re-creates the window. */
+static void focus_game(HANDLE process, DWORD process_id) {
+    DWORD shown_at = 0;
+    AllowSetForegroundWindow(process_id);
+    for (int i = 0; i < 480; i++) {
+        if (WaitForSingleObject(process, 250) != WAIT_TIMEOUT) return;
+        struct game_window game = {process_id, NULL};
+        EnumWindows(find_game_window, (LPARAM)&game);
+        if (!game.window) continue;
+        HWND foreground = GetForegroundWindow();
+        if (!shown_at) {
+            char class_name[64] = "";
+            if (foreground) GetClassNameA(foreground, class_name, sizeof(class_name));
+            diag("the game window appeared (foreground: %s%s)",
+                 foreground == game.window ? "the game" : foreground ? "another window, class " : "none",
+                 foreground == game.window || !foreground ? "" : class_name);
+            shown_at = GetTickCount();
+        }
+        if (foreground != game.window) SetForegroundWindow(game.window);
+        if (GetTickCount() - shown_at > 10000) return;
+    }
+}
+
 int wmain(int argc, WCHAR **argv) {
     unsigned short port = 0;
     BYTE nonce[BRIDGE_NONCE_SIZE] = {0}, client_proof[32] = {0};
@@ -259,6 +299,7 @@ int wmain(int argc, WCHAR **argv) {
     (void)send_frame(peer, "STARTED", 7);
     closesocket(peer);
     peer = INVALID_SOCKET;
+    focus_game(child.hProcess, child.dwProcessId);
     /* The outer Wine launcher tracks this helper, so keep it alive for the game. */
     WaitForSingleObject(child.hProcess, INFINITE);
     result = 0;

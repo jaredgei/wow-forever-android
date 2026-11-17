@@ -24,10 +24,18 @@ internal object BrowserAuthUrl {
             uri.port != 0 || uri.rawUserInfo != null || uri.rawFragment != null || uri.rawPath !in listOf("", "/")
         ) return null
         val query = uri.rawQuery ?: return null
-        // A single, exact parameter avoids duplicate-key and alternate-decoding ambiguity.
-        if (!query.startsWith("ST=") || '&' in query || ';' in query) return null
+        // Battle.net adds other parameters after the ticket (http://localhost:0/?ST=...&flowTrackingId=...), so they
+        // are allowed and ignored. Exactly one parameter may be named ST, and it must be spelled that way: a second
+        // or an encoded ST (%53T) is ambiguous between decoders and is refused, as is the ';' separator.
+        if (';' in query) return null
+        val named = try {
+            query.split('&').filter { URLDecoder.decode(it.substringBefore('='), StandardCharsets.UTF_8.name()) == "ST" }
+        } catch (_: IllegalArgumentException) {
+            return null
+        }
+        val parameter = named.singleOrNull()?.takeIf { it.startsWith("ST=") } ?: return null
         val decoded = try {
-            URLDecoder.decode(query.substring(3), StandardCharsets.UTF_8.name())
+            URLDecoder.decode(parameter.substring(3), StandardCharsets.UTF_8.name())
         } catch (_: IllegalArgumentException) {
             return null
         }

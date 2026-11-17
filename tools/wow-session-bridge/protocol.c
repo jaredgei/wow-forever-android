@@ -65,14 +65,25 @@ static int append_character(wchar_t *command, size_t capacity, size_t *used, wch
     return 1;
 }
 
-/* Windows CommandLineToArgvW/CRT quoting: quote every argument, double trailing
- * backslashes and backslashes before quotes, and preserve empty arguments. */
+/* Windows CommandLineToArgvW/CRT quoting, only where an argument needs it (it is
+ * empty or holds a space, a tab or a quote): double trailing backslashes and
+ * backslashes before quotes. Every other argument stays bare. The game parses
+ * the raw command line itself and takes a quoted "-launcherlogin" for a value,
+ * not an option, and stops with "Invalid argument: -launcherlogin". */
 int bridge_append_argument(wchar_t *command, size_t capacity, const wchar_t *argument) {
     size_t used = 0, slashes = 0;
     if (!command || !capacity || !argument) return 0;
     while (used < capacity && command[used]) used++;
     if (used == capacity) return 0;
     if (used && !append_character(command, capacity, &used, L' ')) return 0;
+    int quoted = !*argument;
+    for (const wchar_t *p = argument; *p && !quoted; p++)
+        quoted = *p == L' ' || *p == L'\t' || *p == L'"';
+    if (!quoted) {
+        for (const wchar_t *p = argument; *p; p++)
+            if (!append_character(command, capacity, &used, *p)) return 0;
+        return 1;
+    }
     if (!append_character(command, capacity, &used, L'"')) return 0;
     for (const wchar_t *p = argument;; p++) {
         if (*p == L'\\') { slashes++; continue; }

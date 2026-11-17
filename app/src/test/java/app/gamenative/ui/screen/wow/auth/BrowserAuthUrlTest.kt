@@ -44,6 +44,15 @@ class BrowserAuthUrlTest {
     }
 
     @Test
+    fun ignoresTheOtherParametersBattleNetAddsToTheRedirect() {
+        // A real sign-in ends at an address of this shape.
+        assertEquals("EU-ABC-123", BrowserAuthUrl.ticket("http://localhost:0/?ST=EU-ABC-123&flowTrackingId=0f8b1c2d")?.decodeToString())
+        assertEquals("EU-ABC-123", BrowserAuthUrl.ticket("http://localhost:0/?ST=EU-ABC-123&flowTrackingId=")?.decodeToString())
+        assertEquals("EU-ABC-123", BrowserAuthUrl.ticket("http://localhost:0/?flowTrackingId=0f8b1c2d&ST=EU-ABC-123")?.decodeToString())
+        assertEquals("x", BrowserAuthUrl.ticket("http://localhost:0/?ST=x&other=y")?.decodeToString())
+    }
+
+    @Test
     fun rejectsRedirectLookalikesAndAmbiguousParameters() {
         listOf(
             "https://localhost:0/?ST=x",
@@ -55,7 +64,9 @@ class BrowserAuthUrlTest {
             "http://localhost:0/other?ST=x",
             "http://localhost:0/?ST=x#fragment",
             "http://localhost:0/?ST=x&ST=y",
-            "http://localhost:0/?ST=x&other=y",
+            "http://localhost:0/?ST=x&%53T=y",
+            "http://localhost:0/?ST=x&%GG=y",
+            "http://localhost:0/?flowTrackingId=0f8b1c2d",
             "http://localhost:0/?ST=x;ST=y",
             "http://localhost:0/?%53T=x",
             "http://localhost:0/?st=x",
