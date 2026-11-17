@@ -97,8 +97,12 @@ internal object BattleNetBrowserLogin {
             }
             attempt.job = scope.launch { run(attempt) }
             // These arguments contain paths and public switches only. The token travels over the authenticated socket.
-            return "\"C:\\wow-session\\$ASSET\" \"C:\\wow-session\\${request.name}\" " +
-                "\"${container.executablePath}\" -launcherlogin -uid ${WowClientDownloader.TARGET_PRODUCT} -d3d11"
+            // No quotes: ProcessHelper.splitCommand keeps quote characters, so Wine would get them as part of each
+            // path and couldn't find the helper. None of these paths contain spaces.
+            val gamePath = container.executablePath
+            check(' ' !in gamePath) { "The game path can't contain spaces for browser login" }
+            return "C:\\wow-session\\$ASSET C:\\wow-session\\${request.name} " +
+                "$gamePath -launcherlogin -uid ${WowClientDownloader.TARGET_PRODUCT} -d3d11"
         } catch (error: Exception) {
             bridge.close()
             request.delete()

@@ -45,7 +45,6 @@ android {
         manifestPlaceholders["screenOrientation"] = "unspecified"
         buildConfigField("boolean", "XR_BUILD", "false")
 
-        versionCode = 245
         versionCode = 246
         versionName = "2.4.4-login4"
 

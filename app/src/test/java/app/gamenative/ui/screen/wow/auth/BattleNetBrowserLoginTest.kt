@@ -103,6 +103,30 @@ class BattleNetBrowserLoginTest {
     }
 
     @Test
+    fun launchArgumentsReachWineWithoutQuoteCharacters() {
+        val container = container("arguments")
+        val command = BattleNetBrowserLogin.start(RuntimeEnvironment.getApplication(), container)
+        val request = request(container)
+
+        // The launcher splits the command with ProcessHelper.splitCommand, which keeps quote characters.
+        val arguments = com.winlator.core.ProcessHelper.splitCommand(command).toList()
+
+        org.junit.Assert.assertEquals(
+            listOf(
+                "C:\\wow-session\\wow-session-bridge.exe",
+                "C:\\wow-session\\${request.name}",
+                "G:\\_forever_\\Wow-ARM64.exe",
+                "-launcherlogin",
+                "-uid",
+                "wowf",
+                "-d3d11",
+            ),
+            arguments,
+        )
+        BattleNetBrowserLogin.cancel()
+    }
+
+    @Test
     fun cancelRemovesThePrivateCapabilityAndClosesTheListener() {
         val container = container("cancelled")
         BattleNetBrowserLogin.start(RuntimeEnvironment.getApplication(), container)
