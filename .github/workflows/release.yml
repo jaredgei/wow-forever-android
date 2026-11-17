@@ -71,6 +71,12 @@ jobs:
       - name: Fetch bundled components
         run: tools/fetch_components.sh
 
+      # The ARM64 client never uses Proton's 32-bit Windows half, which is also what antivirus engines flag (#89).
+      - name: Remove 32-bit Windows files from Proton
+        run: |
+          command -v zstd > /dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq zstd > /dev/null; }
+          python3 tools/trim_proton_i386.py app/src/main/assets/bundled_components/proton-11.0-90624-arm64ec.wcp
+
       # The browser-login helper ships only as built here from the reviewed source, never as a committed binary.
       - name: Build the browser-login helper
         if: hashFiles('tools/wow-session-bridge/build.sh') != ''

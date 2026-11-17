@@ -318,11 +318,15 @@ public class ContainerManager {
         File srcDir = new File(wineInfo.path + "/lib/wine/" + srcName);
 
         File[] srcfiles = srcDir.listFiles(file -> file.isFile());
+        // WoW Forever ships Proton without its 32-bit Windows files (#89), so i386-windows may be empty or missing.
+        if (srcfiles == null) return;
 
         for (File file : srcfiles) {
             String dllName = file.getName();
-            if (dllName.equals("iexplore.exe") && wineInfo.isArm64EC() && srcName.equals("aarch64-windows"))
-                file = new File(wineInfo.path + "/lib/wine/" + "i386-windows/iexplore.exe");
+            if (dllName.equals("iexplore.exe") && wineInfo.isArm64EC() && srcName.equals("aarch64-windows")) {
+                File i386 = new File(wineInfo.path + "/lib/wine/" + "i386-windows/iexplore.exe");
+                if (i386.isFile()) file = i386;
+            }
             File dstFile = new File(containerDir, ".wine/drive_c/windows/" + dstName + "/" + dllName);
             if (dstFile.exists()) continue;
             if (onExtractFileListener != null ) {
