@@ -1976,7 +1976,13 @@ fun XServerScreen(
                 keyboard = Keyboard(getxServer())
                 renderer.setUnviewableWMClasses("explorer.exe")
                 if (container.executablePath.isNotBlank()) {
-                    renderer.forceFullscreenWMClass = Paths.get(container.executablePath).name
+                    // Battle.net's own window stays a normal window; the game it starts is the one to show fullscreen.
+                    renderer.forceFullscreenWMClass =
+                        if (container.executablePath == app.gamenative.ui.screen.wow.BattleNet.LAUNCHER_WINDOWS_PATH) {
+                            app.gamenative.ui.screen.wow.BattleNet.GAME_EXECUTABLE
+                        } else {
+                            Paths.get(container.executablePath).name
+                        }
                 }
                 // Remove any previous listener before adding a new one (handles key(isPortrait) recreation)
                 windowModificationListener?.let {
@@ -2068,6 +2074,7 @@ fun XServerScreen(
                             )
                             refreshFrameRatingTracking("map-window")
                             win32AppWorkarounds?.applyWindowWorkarounds(window)
+                            closeBattleNetOnceGameIsIn(window, container, xServerView?.getxServer()?.winHandler)
                             val targetExecutable = extractExecutableBasename(container.executablePath)
                             val isGameWindow = (targetExecutable.isNotBlank() && windowMatchesExecutable(window, targetExecutable)) ||
                                     (window.isApplicationWindow() && !window.name.equals("shell", ignoreCase = true) && !window.className.contains("explorer", ignoreCase = true))
@@ -4902,4 +4909,35 @@ private fun setImagefsContainerVariant(context: Context, container: Container) {
     val imageFs = ImageFs.find(context)
     val containerVariant = container.containerVariant
     imageFs.createVariantFile(containerVariant)
+}
+
+private val battleNetCloseScheduled = java.util.concurrent.atomic.AtomicBoolean(false)
+private const val BATTLE_NET_CLOSE_DELAY_MS = 15_000L
+
+/**
+ * Closes Battle.net 15 s after the game it started shows its window. Battle.net has to be running when the game
+ * logs in with the launcher's token, which took about 4 s from the game's window appearing on the test phone; with
+ * Battle.net's own "exit when a game starts" it is gone long before, and the game stays at the login screen. After
+ * the login its browser processes only cost: on the test phone (12 GB) they took 60-100% of a core and pushed about
+ * 8 GB into swap, and the game averaged 32 fps with long stalls; with Battle.net closed it averaged about 60 fps.
+ * The game's Connection.log can't be watched for the login instead: the game writes it out only when it exits.
+ * The Agent stays; the game talks to it when it exits.
+ */
+private fun closeBattleNetOnceGameIsIn(window: Window, container: Container, winHandler: com.winlator.winhandler.WinHandler?) {
+    if (container.executablePath != app.gamenative.ui.screen.wow.BattleNet.LAUNCHER_WINDOWS_PATH || winHandler == null) return
+    if (!window.className.equals(app.gamenative.ui.screen.wow.BattleNet.GAME_EXECUTABLE, ignoreCase = true)) return
+    if (!battleNetCloseScheduled.compareAndSet(false, true)) return
+    CoroutineScope(Dispatchers.IO).launch {
+        try {
+            delay(BATTLE_NET_CLOSE_DELAY_MS)
+            Timber.i("Closing Battle.net: the game has had %d s to log in", BATTLE_NET_CLOSE_DELAY_MS / 1000)
+            // Its browser helpers carry the same name; ask a few times so they all go.
+            repeat(4) {
+                winHandler.killProcess("Battle.net.exe")
+                delay(1_500)
+            }
+        } finally {
+            battleNetCloseScheduled.set(false)
+        }
+    }
 }

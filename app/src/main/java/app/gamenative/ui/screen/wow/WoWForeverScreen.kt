@@ -205,7 +205,7 @@ fun WoWForeverScreen(
         statusText = READY_STATUS
     }
 
-    fun launchGame() {
+    fun launchGame(target: LaunchTarget = LaunchTarget.GAME) {
         if (isLaunching || files.isWrongGame) return
         if (!files.hasStorageAccess) {
             showStoragePermissionDialog = true
@@ -219,11 +219,11 @@ fun WoWForeverScreen(
             try {
                 val screenSize = fitScreenSizeToWindow(context, resolution.size)
                 val containerId = withContext(Dispatchers.IO) {
-                    prepareLaunch(context, File(gamePath), gpu, screenSize) { msg ->
+                    prepareLaunch(context, File(gamePath), gpu, screenSize, target) { msg ->
                         scope.launch(Dispatchers.Main) { statusText = msg }
                     }
                 }
-                statusText = "Booting into World of Warcraft..."
+                statusText = if (target == LaunchTarget.BATTLE_NET) "Starting Battle.net..." else "Booting into World of Warcraft..."
                 onLaunch(containerId)
             } catch (e: CancellationException) {
                 throw e
@@ -672,7 +672,7 @@ fun WoWForeverScreen(
                             )
                             Spacer(modifier = Modifier.height(10.dp))
                             OutlinedButton(
-                                onClick = ::launchGame,
+                                onClick = { launchGame() },
                                 enabled = canPlay,
                                 modifier = Modifier.fillMaxWidth(0.85f).height(48.dp),
                                 shape = RoundedCornerShape(14.dp)
@@ -684,7 +684,7 @@ fun WoWForeverScreen(
                             text = if (files.isWrongGame) "WOW FOREVER REQUIRED" else "PLAY WORLD OF WARCRAFT",
                             icon = Icons.Default.PlayArrow,
                             enabled = canPlay,
-                            onClick = ::launchGame,
+                            onClick = { launchGame() },
                         )
                     }
 
@@ -706,6 +706,10 @@ fun WoWForeverScreen(
                             LinkButton("Add-on", Icons.Default.Extension, enabled = !isLaunching && !isUpdating) {
                                 addonPicker.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream"))
                             }
+                        }
+                        if (!files.needsInstall) {
+                            // Experimental: the official Battle.net app, which signs in and starts the game like on a PC.
+                            LinkButton("Battle.net (beta)", Icons.Default.PlayArrow, enabled = canPlay) { launchGame(LaunchTarget.BATTLE_NET) }
                         }
                         LinkButton(
                             text = "Login",
@@ -1222,7 +1226,14 @@ internal fun fitScreenSize(baseSize: String, windowWidth: Int, windowHeight: Int
     return "${(width / 2).roundToInt() * 2}x${(height / 2).roundToInt() * 2}"
 }
 
-private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, screenSize: String, onStatus: (String) -> Unit): String {
+private fun prepareLaunch(
+    context: Context,
+    gameRoot: File,
+    gpu: GpuProfile,
+    screenSize: String,
+    target: LaunchTarget = LaunchTarget.GAME,
+    onStatus: (String) -> Unit,
+): String {
     installBundledComponents(context, onStatus)
 
     check(File(gameRoot, BUILD_INFO).exists()) { "Missing $BUILD_INFO in $gameRoot. Copy it from your WoW install." }
@@ -1245,16 +1256,28 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, scr
 
     onStatus("Configuring ${gpu.label} container...")
     val containerManager = ContainerManager(context)
-    val config = containerConfig(gameRoot, gpu, screenSize, WowMachineIdentity.load(context))
+    val config = containerConfig(gameRoot, gpu, screenSize, WowMachineIdentity.load(context), target)
     val container = containerManager.getContainerById(CONTAINER_ID)
     if (container == null) {
         onStatus("Creating prefix environment (first boot)...")
         containerManager.createContainer(CONTAINER_ID, config)
     } else {
+        // A Battle.net session changes two settings the config above doesn't carry; a game start puts them back.
+        val leftByBattleNet = container.executablePath.let { it == BattleNet.LAUNCHER_WINDOWS_PATH || it == BattleNet.INSTALLER_WINDOWS_PATH }
         container.loadData(config)
+        if (target == LaunchTarget.GAME && leftByBattleNet) {
+            container.emulator = Container.DEFAULT_EMULATOR
+            container.setFEXCorePreset(com.winlator.fexcore.FEXCorePreset.INTERMEDIATE)
+        }
         container.saveData()
     }
     check(containerManager.hasContainer(CONTAINER_ID)) { "Container creation failed. Check system storage and logs." }
+    if (target == LaunchTarget.BATTLE_NET) {
+        prepareBattleNet(context, containerManager, gameRoot, onStatus)
+        // Battle.net signs in itself and hands the game a launcher token, so the game gets no login.txt.
+        BattleNetSignIn.removeLoginFile(gameRoot)
+        return CONTAINER_ID
+    }
     // Written last, so the password isn't on disk during the client download or container setup.
     BattleNetSignIn.load(context)?.let { login ->
         BattleNetSignIn.writeLoginFile(gameRoot, login)
@@ -1263,7 +1286,58 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, scr
     return CONTAINER_ID
 }
 
-private fun containerConfig(gameRoot: File, gpu: GpuProfile, screenSize: String, identity: WowMachineIdentity): JSONObject {
+/**
+ * Points the WoW container at the Battle.net desktop app (or its installer) for this start. Everything here is
+ * written to the container after the regular config, and the next game start loads that config again, so a normal
+ * game start is not affected.
+ */
+private fun prepareBattleNet(context: Context, containerManager: ContainerManager, gameRoot: File, onStatus: (String) -> Unit) {
+    containerManager.getContainerById(CONTAINER_ID)?.apply {
+        val exe = checkNotNull(BattleNet.executable(rootDir)) {
+            "Battle.net isn't installed yet. Download Blizzard's Windows installer and save it as Download/${BattleNet.INSTALLER_NAME}, then try again."
+        }
+        onStatus(if (exe == BattleNet.INSTALLER_WINDOWS_PATH) "Starting the Battle.net installer..." else "Starting Battle.net...")
+        // For the installer too: "Locate the game" needs both.
+        runCatching { Timber.i("Drive H: as FAT32: %s", BattleNet.markGameDriveFat32(context, rootDir)) }
+            .onFailure { Timber.w(it, "Couldn't mark drive H: as FAT32") }
+        runCatching { Timber.i("Game .product.db: %s", BattleNet.writeProductDb(gameRoot)) }
+            .onFailure { Timber.w(it, "Couldn't write the game's .product.db") }
+        if (exe == BattleNet.LAUNCHER_WINDOWS_PATH) {
+            runCatching { BattleNet.applyClientSettings(rootDir) }
+                .onFailure { Timber.w(it, "Couldn't write Battle.net's settings") }
+            runCatching { if (BattleNet.setLoginRegion(rootDir, GameRegion.current(context, gameRoot.path).name)) Timber.i("Battle.net login region set") }
+                .onFailure { Timber.w(it, "Couldn't set Battle.net's login region") }
+        }
+        // 32-bit emulator per program. The installer needs Box64 (FEX's libwow64fex overflowed its stack on it), but
+        // Battle.net itself deadlocked inside wowbox64 with its main thread holding a Box64 lock, so it uses FEX.
+        emulator = if (exe == BattleNet.INSTALLER_WINDOWS_PATH) "Box64" else "FEXCore"
+        // Upstream FEX's libwow64fex overflowed the 64-bit stack inside wow64.dll on Battle.net.exe's main thread too.
+        // WoW Box's FEX carries Battle.net-specific fixes, so Battle.net uses that build.
+        setFEXCoreVersion(BattleNet.FEX_VERSION)
+        // Full x86 memory ordering for Battle.net. With multiblock JIT on (COMPATIBILITY, INTERMEDIATE) its login page
+        // stopped loading every time, while STABILITY got through. Only Battle.net runs through FEX; the game is
+        // native ARM64, so this costs the game nothing.
+        setFEXCorePreset(com.winlator.fexcore.FEXCorePreset.STABILITY)
+        if (exe == BattleNet.LAUNCHER_WINDOWS_PATH) {
+            // Battle.net's main thread died right after Qt loaded Wine's directmanipulation.dll, with both emulators.
+            // Disabling the DLL makes Qt's DirectManipulation setup fail cleanly so it skips it.
+            setEnvVars("$envVars WINEDLLOVERRIDES=directmanipulation=d")
+            runCatching { Timber.i("Battle.net fonts: %s", BattleNet.installFonts(context, rootDir)) }
+                .onFailure { Timber.w(it, "Couldn't install Battle.net's fonts") }
+        }
+        executablePath = exe
+        execArgs = ""
+        saveData()
+    }
+}
+
+private fun containerConfig(
+    gameRoot: File,
+    gpu: GpuProfile,
+    screenSize: String,
+    identity: WowMachineIdentity,
+    target: LaunchTarget = LaunchTarget.GAME,
+): JSONObject {
     val samsungEnv = if (Build.MANUFACTURER.equals("samsung", ignoreCase = true)) " FD_DEV_FEATURES=enable_tp_ubwc_flag_hint=1" else ""
     val envVars = "WRAPPER_MAX_IMAGE_COUNT=0 ZINK_DESCRIPTORS=lazy ZINK_DEBUG=compact,deck_emu MESA_SHADER_CACHE_DISABLE=false MESA_SHADER_CACHE_MAX_SIZE=512MB mesa_glthread=true WINEESYNC=0 MESA_VK_WSI_PRESENT_MODE=mailbox TU_DEBUG=${gpu.tuDebug} VKD3D_SHADER_MODEL=6_0 PULSE_LATENCY_MSEC=144 ${WowMachineIdentity.HOSTNAME_ENV}=${identity.computerName}$samsungEnv"
     return JSONObject().apply {
@@ -1280,7 +1354,9 @@ private fun containerConfig(gameRoot: File, gpu: GpuProfile, screenSize: String,
         put("wineVersion", "$PROTON_VERSION-1")
         put("containerVariant", "bionic")
         put("fexcoreVersion", "2609-0")
-        put("drives", "D:/storage/emulated/0/DownloadE:/data/data/app.wowforever/storageG:${gameRoot.path}")
+        // H: is only for Battle.net, which must see the game as a plain folder (BattleNet.gameDrive).
+        val battleNetDrive = if (target == LaunchTarget.BATTLE_NET) BattleNet.gameDrive(gameRoot) else ""
+        put("drives", "D:/storage/emulated/0/DownloadE:/data/data/app.wowforever/storageG:${gameRoot.path}$battleNetDrive")
         put("executablePath", "G:\\$FLAVOR_DIR\\$EXE_NAME")
         put("execArgs", "-d3d11")
         put("showFPS", true)
