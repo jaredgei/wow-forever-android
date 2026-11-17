@@ -46,7 +46,7 @@ android {
         buildConfigField("boolean", "XR_BUILD", "false")
 
         versionCode = 245
-        versionName = "2.4.4-rc2"
+        versionName = "2.4.4"
 
         buildConfigField("boolean", "GOLD", "false")
         val iconValue = "@mipmap/ic_launcher"
