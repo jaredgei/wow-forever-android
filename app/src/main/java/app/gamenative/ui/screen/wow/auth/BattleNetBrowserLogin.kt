@@ -48,6 +48,9 @@ internal object BattleNetBrowserLogin {
         class Failed(val text: String) : Ui
     }
 
+    /** The callback belongs to this launch even if sign-in is cancelled or another attempt starts. */
+    class Launch(val command: String, val onExit: (Int) -> Unit)
+
     fun enabled(context: Context): Boolean = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         .getBoolean("enabled", false)
 
@@ -57,7 +60,7 @@ internal object BattleNetBrowserLogin {
 
     /** Runs after Wine prefix initialization. Container executable remains the game for window tracking. */
     @Synchronized
-    fun start(context: Context, container: Container): String {
+    fun start(context: Context, container: Container): Launch {
         cancel()
         val gameRoot = Container.drivesIterator(container.drives).asSequence()
             .firstOrNull { it[0].equals("G", ignoreCase = true) }?.let { File(it[1]) }
@@ -101,8 +104,9 @@ internal object BattleNetBrowserLogin {
             // path and couldn't find the helper. None of these paths contain spaces.
             val gamePath = container.executablePath
             check(' ' !in gamePath) { "The game path can't contain spaces for browser login" }
-            return "C:\\wow-session\\$ASSET C:\\wow-session\\${request.name} " +
+            val command = "C:\\wow-session\\$ASSET C:\\wow-session\\${request.name} " +
                 "$gamePath -launcherlogin -uid ${WowClientDownloader.TARGET_PRODUCT} -d3d11"
+            return Launch(command) { status -> guestExited(attempt, status) }
         } catch (error: Exception) {
             bridge.close()
             request.delete()
@@ -155,6 +159,8 @@ internal object BattleNetBrowserLogin {
             diag(attempt, "Battle.net error: ${error.message}")
             fail(attempt, error.message ?: "Battle.net sign-in failed.")
         } catch (error: Exception) {
+            // Closing the listener during exit/cancellation can interrupt accept with SocketException.
+            if (attempt.cancelled) return
             // The exception type only: messages can carry provider payloads or addresses.
             diag(attempt, "stopped: ${error.javaClass.simpleName}")
             // Never expose provider payloads, redirect URLs, credentials or arbitrary peer output.
@@ -191,7 +197,7 @@ internal object BattleNetBrowserLogin {
         runCatching {
             attempt.log.parentFile?.mkdirs()
             val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.ROOT).format(java.util.Date())
-            attempt.log.appendText("$time app: $message\n")
+            attempt.log.appendText("$time app: [${attempt.id}] $message\n")
         }
     }
 
@@ -250,12 +256,16 @@ internal object BattleNetBrowserLogin {
     }
 
     @Synchronized
-    fun guestExited() {
-        val attempt = active
-        if (attempt != null && mutableUi.value !is Ui.Idle && mutableUi.value !is Ui.Failed) {
-            diag(attempt, "the Wine side exited before sign-in completed")
+    private fun guestExited(attempt: Attempt, status: Int) {
+        if (attempt.exitRecorded) return
+        attempt.exitRecorded = true
+        // This is the outer Wine launch status, not necessarily the Windows helper's exit code.
+        // ProcessHelper also reports -1 when launching the process fails. Preserve it verbatim.
+        diag(attempt, "Wine launch exit status: $status")
+        if (active !== attempt || attempt.cancelled) return
+        if (mutableUi.value !is Ui.Idle && mutableUi.value !is Ui.Failed) {
             mutableUi.value = Ui.Failed(
-                "The Wine login helper stopped before sign-in completed. Details are in _forever_/Logs/BrowserLogin.log.",
+                "The Wine launch stopped before sign-in completed (status $status). Details are in _forever_/Logs/BrowserLogin.log.",
             )
         }
         cancel(preserveFailure = true)
@@ -268,6 +278,9 @@ internal object BattleNetBrowserLogin {
         val build: Int,
         val log: File,
     ) {
+        // The request filename's random ID is independent of the private socket capability.
+        val id = request.name.removePrefix("request-").removeSuffix(".txt")
+        var exitRecorded = false // Accessed only by the synchronized exit callback.
         val ticket = CompletableDeferred<ByteArray>()
         val client = AtomicReference<BgsClient?>()
         val ticketBytes = AtomicReference<ByteArray?>()
