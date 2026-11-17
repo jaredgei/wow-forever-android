@@ -83,3 +83,6 @@ Wow-ARM64/
 
 # Agent guidance (private)
 docs/
+
+# Built from tools/wow-session-bridge by the release workflow (tools/wow-session-bridge/build.sh), never committed.
+app/src/main/assets/wow-session-bridge.exe
