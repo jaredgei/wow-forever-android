@@ -1,6 +1,11 @@
 # Builds the release APK, signs it with the release key from the repository's Actions secrets, and publishes it as a
 # GitHub release. Run by hand (Actions tab, or the API) only; nothing triggers it automatically.
 #
+# The build always uses the commit the workflow runs from: pick the branch in "Use workflow from" (the API's "ref").
+# The build provenance attestation records that commit, so `gh attestation verify WoW-Forever.apk --repo <this repo>`
+# tells anyone which commit and workflow made an APK. The in-app updater installs only an APK that this workflow
+# attested on main (ReleaseAttestation.kt), so build releases for the updater from main.
+#
 # Secrets (Settings > Secrets and variables > Actions):
 #   RELEASE_KEYSTORE_BASE64  the keystore file, base64-encoded (base64 -w0 release.jks, or base64 -i release.jks on macOS)
 #   RELEASE_STORE_PASSWORD   the keystore password
@@ -11,10 +16,6 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
-      ref:
-        description: Branch, tag or commit to build
-        required: true
-        default: main
       tag:
         description: Release tag to create, e.g. v2.4.2 or v2.4.1-test1
         required: true
@@ -31,6 +32,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 concurrency:
   group: release
@@ -42,8 +45,6 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.ref }}
 
       - uses: actions/setup-java@v4
         with:
@@ -127,6 +128,12 @@ jobs:
       - name: Remove signing files
         if: always()
         run: rm -rf app/keystores/release.jks app/keystores/keystore.properties
+
+      # Signs a statement that binds the APK's SHA-256 to this repository, workflow and commit (Sigstore, SLSA provenance).
+      - name: Attest the build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: WoW-Forever.apk
 
       - name: Publish the release
         env:
