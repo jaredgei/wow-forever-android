@@ -373,7 +373,7 @@ fun PluviaMain(
                             viewModel.onWindowMapped(context, window, state.launchedAppId)
                         },
                         onExit = { onComplete ->
-                            BattleNetBrowserLogin.guestExited()
+                            BattleNetBrowserLogin.cancel(preserveFailure = true)
                             BattleNetSignIn.removeLoginFile(File(GamePath.load(context)))
                             viewModel.exitApp(context, state.launchedAppId, onComplete)
                         },

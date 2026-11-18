@@ -3660,11 +3660,12 @@ private fun setupXEnvironment(
         guestProgramLauncherComponent.setWineInfo(xServerState.value.wineInfo)
         val directCommand = getWineStartCommand(context, appId, container, envVars, guestProgramLauncherComponent) +
             (if (container.execArgs.isNotEmpty()) " " + container.execArgs else "")
-        val launchCommand = if (BattleNetBrowserLogin.enabled(context)) {
+        val browserLogin = if (BattleNetBrowserLogin.enabled(context)) {
             BattleNetBrowserLogin.start(context, container)
         } else {
-            directCommand
+            null
         }
+        val launchCommand = browserLogin?.command ?: directCommand
         val gameExecutable = "wine explorer /desktop=shell," + xServer.screenInfo + " " + launchCommand
         guestProgramLauncherComponent.guestExecutable = gameExecutable
         guestProgramLauncherComponent.isWoW64Mode = wow64Mode
@@ -3788,6 +3789,8 @@ private fun setupXEnvironment(
     guestProgramLauncherComponent.envVars = EnvVars().apply { putAll(envVars) }
 
     val gameTerminationCallback = Callback<Int> { status ->
+        // Record the status for this launch before error handling or screen cleanup cancels sign-in.
+        browserLogin?.onExit?.invoke(status)
         if (status != 0) {
             Timber.e("Guest program terminated with status: $status")
             onGameLaunchError?.invoke("Game terminated with error status: $status")

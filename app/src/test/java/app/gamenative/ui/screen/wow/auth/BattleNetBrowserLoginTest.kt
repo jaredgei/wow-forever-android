@@ -6,6 +6,7 @@ import app.gamenative.events.AndroidEvent
 import com.winlator.container.Container
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -84,28 +85,92 @@ class BattleNetBrowserLoginTest {
     @Test
     fun unexpectedGuestExitPreservesErrorAcrossAutomaticCleanup() {
         val container = container("exited")
-        BattleNetBrowserLogin.start(RuntimeEnvironment.getApplication(), container)
+        val launch = BattleNetBrowserLogin.start(RuntimeEnvironment.getApplication(), container)
         val request = request(container)
         val port = request.readLines().first().toInt()
 
-        BattleNetBrowserLogin.guestExited()
+        launch.onExit(53)
         val failure = BattleNetBrowserLogin.ui.value
         assertTrue(failure is BattleNetBrowserLogin.Ui.Failed)
+        assertTrue((failure as BattleNetBrowserLogin.Ui.Failed).text.contains("status 53"))
         BattleNetBrowserLogin.cancel(preserveFailure = true)
-        BattleNetBrowserLogin.guestExited()
+        launch.onExit(53)
 
         assertSame(failure, BattleNetBrowserLogin.ui.value)
         assertFalse(request.exists())
         assertListenerClosed(port)
+        assertEquals(1, exitLines(container).size)
+        assertTrue(exitLines(container).single().endsWith("Wine launch exit status: 53"))
 
         BattleNetBrowserLogin.cancel()
         assertSame(BattleNetBrowserLogin.Ui.Idle, BattleNetBrowserLogin.ui.value)
     }
 
     @Test
+    fun zeroExitBeforeSignInIsStillAPrematureExit() {
+        val container = container("zero-exit")
+        val launch = BattleNetBrowserLogin.start(RuntimeEnvironment.getApplication(), container)
+
+        launch.onExit(0)
+
+        assertTrue(BattleNetBrowserLogin.ui.value is BattleNetBrowserLogin.Ui.Failed)
+        assertTrue(exitLines(container).single().endsWith("Wine launch exit status: 0"))
+    }
+
+    @Test
+    fun launchFailureStatusIsPreservedVerbatim() {
+        val container = container("launch-failure")
+        val launch = BattleNetBrowserLogin.start(RuntimeEnvironment.getApplication(), container)
+
+        launch.onExit(-1)
+
+        assertTrue(BattleNetBrowserLogin.ui.value is BattleNetBrowserLogin.Ui.Failed)
+        assertTrue(exitLines(container).single().endsWith("Wine launch exit status: -1"))
+    }
+
+    @Test
+    fun lateExitAfterCancellationIsLoggedWithoutChangingIdleState() {
+        val container = container("cancelled-exit")
+        val launch = BattleNetBrowserLogin.start(RuntimeEnvironment.getApplication(), container)
+        BattleNetBrowserLogin.cancel(preserveFailure = true)
+        assertTrue(exitLines(container).isEmpty()) // Screen cleanup is not a process-exit event.
+
+        launch.onExit(143)
+
+        assertSame(BattleNetBrowserLogin.Ui.Idle, BattleNetBrowserLogin.ui.value)
+        assertTrue(exitLines(container).single().endsWith("Wine launch exit status: 143"))
+    }
+
+    @Test
+    fun lateExitIsAttributedToItsOriginalAttemptWithoutCancellingRetry() {
+        val container = container("retry")
+        val first = BattleNetBrowserLogin.start(RuntimeEnvironment.getApplication(), container)
+        val firstRequest = request(container)
+        val firstId = firstRequest.name.removePrefix("request-").removeSuffix(".txt")
+        val second = BattleNetBrowserLogin.start(RuntimeEnvironment.getApplication(), container)
+        val currentUi = BattleNetBrowserLogin.ui.value
+        val secondRequest = request(container)
+        val secondId = secondRequest.name.removePrefix("request-").removeSuffix(".txt")
+
+        first.onExit(53)
+        first.onExit(53)
+
+        assertSame(currentUi, BattleNetBrowserLogin.ui.value)
+        assertTrue(secondRequest.isFile)
+        assertFalse(firstRequest.exists())
+        assertEquals(1, exitLines(container).size)
+        assertTrue(exitLines(container).single().contains("[$firstId]"))
+        assertFalse(exitLines(container).single().contains("[$secondId]"))
+
+        second.onExit(0)
+        assertEquals(2, exitLines(container).size)
+        assertTrue(exitLines(container).last().contains("[$secondId]"))
+    }
+
+    @Test
     fun launchArgumentsReachWineWithoutQuoteCharacters() {
         val container = container("arguments")
-        val command = BattleNetBrowserLogin.start(RuntimeEnvironment.getApplication(), container)
+        val command = BattleNetBrowserLogin.start(RuntimeEnvironment.getApplication(), container).command
         val request = request(container)
 
         // The launcher splits the command with ProcessHelper.splitCommand, which keeps quote characters.
@@ -157,6 +222,10 @@ class BattleNetBrowserLoginTest {
 
     private fun request(container: Container): File = File(container.rootDir, ".wine/drive_c/wow-session")
         .listFiles()!!.single { it.name.startsWith("request-") }
+
+    private fun exitLines(container: Container): List<String> =
+        File(container.rootDir.parentFile, "game/_forever_/Logs/BrowserLogin.log")
+            .readLines().filter { "Wine launch exit status:" in it }
 
     private fun assertListenerClosed(port: Int) {
         var connected = false
