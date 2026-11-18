@@ -730,6 +730,16 @@ fun WoWForeverScreen(
                             }
                         }
                     }
+                    // Browser login never uses the saved password, but it stays stored until the user removes it (#97).
+                    if (browserLogin && hasSavedLogin) {
+                        Text(
+                            text = "Browser login doesn't use your saved password, which stays on this device until you tap Forget Login.",
+                            fontSize = 11.sp,
+                            color = WowSubtle,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(top = 6.dp),
+                        )
+                    }
                 }
             }
 
