@@ -1479,9 +1479,11 @@ fun XServerScreen(
         exit(xServerView!!.getxServer().winHandler, frameRating, container, appId, onExit, navigateBack, "activity_destroyed")
     }
     val onKeyEvent: (AndroidEvent.KeyEvent) -> Boolean = {
-        val isKeyboard = Keyboard.isKeyboardDevice(it.event.device)
-        val isPhysicalKeyboard = isKeyboard && it.event.device?.isVirtual != true
         val isGamepad = ExternalController.isGameController(it.event.device)
+        // Keys from an external non-keyboard device (an MMO mouse's side buttons, #99) go to the game as keys too.
+        val isKeyboard = Keyboard.isKeyboardDevice(it.event.device) ||
+            (!isGamepad && Keyboard.isExternalKeySource(it.event.device))
+        val isPhysicalKeyboard = isKeyboard && it.event.device?.isVirtual != true
         val waitingForManualResume =
             manualResumeMode &&
                 PluviaApp.isOverlayPaused &&

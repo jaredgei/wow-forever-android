@@ -93,6 +93,15 @@ public class Keyboard {
                 device.getKeyboardType() == InputDevice.KEYBOARD_TYPE_ALPHABETIC;
     }
 
+    /**
+     * An external device that sends keys but isn't a full keyboard, such as the number pad on the side of an MMO
+     * mouse (#99). Android reports those as non-alphabetic keyboards, which isKeyboardDevice leaves out.
+     */
+    public static boolean isExternalKeySource(InputDevice device) {
+        if (device == null || device.isVirtual() || !device.supportsSource(InputDevice.SOURCE_KEYBOARD)) return false;
+        return android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q || device.isExternal();
+    }
+
     public boolean onVirtualKeyEvent(KeyEvent event) {
         int action = event.getAction();
         if (action == KeyEvent.ACTION_DOWN || action == KeyEvent.ACTION_UP) {
