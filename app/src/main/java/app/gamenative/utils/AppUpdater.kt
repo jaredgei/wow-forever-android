@@ -83,6 +83,10 @@ object AppUpdater {
         }
     }
 
+    /**
+     * Downloads the release's APK and checks that the project's release workflow built it ([ReleaseAttestation]).
+     * Throws [UnverifiedUpdateException] when the check fails; the caller must not install anything then.
+     */
     suspend fun download(
         context: Context,
         release: Release,
@@ -92,9 +96,16 @@ object AppUpdater {
         val dest = File(dir, "WoW-Forever-${release.version}.apk")
         if (dest.exists() && dest.length() == release.sizeBytes && release.sizeBytes > 0) {
             onProgress(1f)
-            return@withContext dest
+        } else {
+            Net.fetchFile(release.downloadUrl, dest, onProgress)
         }
-        Net.fetchFile(release.downloadUrl, dest, onProgress)
+        try {
+            ReleaseAttestation.verify(dest)
+        } catch (e: UnverifiedUpdateException) {
+            // A file that failed the check is of no use. One that couldn't be checked is kept for the next try.
+            if (e.checked) dest.delete()
+            throw e
+        }
         dest
     }
 

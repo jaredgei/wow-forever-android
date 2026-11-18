@@ -36,7 +36,7 @@ Requirements:
 
 Download `WoW-Forever.apk` from the [latest release](https://github.com/jaredgei/wow-forever-android/releases/latest) and install it on your device. The app's package name is `app.wowforever`, so it can sit alongside GameNative or Winlator.
 
-Each release APK has a build provenance attestation: a signed record that this repository's release workflow built that exact file, and from which commit. To check a download, run `gh attestation verify WoW-Forever.apk --repo jaredgei/wow-forever-android` with the [GitHub CLI](https://cli.github.com).
+Each release APK has a build provenance attestation: a signed record that this repository's release workflow built that exact file, and from which commit. To check a download, run `gh attestation verify WoW-Forever.apk --repo jaredgei/wow-forever-android` with the [GitHub CLI](https://cli.github.com). The in-app updater makes the same check on its own before it installs an update.
 
 ### 2. Install the game
 

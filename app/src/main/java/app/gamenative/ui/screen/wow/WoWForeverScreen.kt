@@ -60,6 +60,7 @@ import app.gamenative.ui.theme.WowSubtle
 import app.gamenative.ui.util.SnackbarManager
 import app.gamenative.utils.AppUpdater
 import app.gamenative.utils.StorageUtils
+import app.gamenative.utils.UnverifiedUpdateException
 import app.gamenative.utils.renderReleaseNotes
 import com.winlator.container.Container
 import com.winlator.container.ContainerManager
@@ -165,6 +166,10 @@ fun WoWForeverScreen(
                 downloadedApk = apk
                 isDownloadingAppUpdate = false
                 installOrRequestPermission(apk)
+            } catch (e: UnverifiedUpdateException) {
+                Timber.w(e, "App update not verified")
+                errorMessage = e.message
+                isDownloadingAppUpdate = false
             } catch (e: Exception) {
                 Timber.e(e, "Error downloading app update")
                 errorMessage = "App update download failed: ${e.message}"
