@@ -25,6 +25,7 @@ public class InputDeviceManager implements Pointer.OnPointerMotionListener, Keyb
     private final Handler autoRepeatHandler = new Handler(Looper.getMainLooper());
     private byte currentRepeatingKeycode;
     private int currentRepeatingKeysym;
+    private int currentRepeatingShiftedKeysym;
     private int repeatDelayMs = 500;
     private int repeatRateMs = 50;
 
@@ -32,7 +33,7 @@ public class InputDeviceManager implements Pointer.OnPointerMotionListener, Keyb
         @Override
         public void run() {
             if (xServer.keyboard.getPressedKeys().contains(currentRepeatingKeycode)) {
-                onKeyPress(currentRepeatingKeycode, currentRepeatingKeysym, true);
+                onKeyPress(currentRepeatingKeycode, currentRepeatingKeysym, currentRepeatingShiftedKeysym, true);
                 autoRepeatHandler.postDelayed(this, repeatRateMs);
             }
         }
@@ -221,7 +222,7 @@ public class InputDeviceManager implements Pointer.OnPointerMotionListener, Keyb
     }
 
     @Override
-    public void onKeyPress(byte keycode, int keysym, boolean autoRepeat) {
+    public void onKeyPress(byte keycode, int keysym, int shiftedKeysym, boolean autoRepeat) {
         // Any new key press ends the previous key's repeat, as on a real keyboard.
         autoRepeatHandler.removeCallbacks(autoRepeatRunnable);
 
@@ -247,7 +248,12 @@ public class InputDeviceManager implements Pointer.OnPointerMotionListener, Keyb
         short y = xServer.pointer.getY();
         short[] localPoint = eventWindow.rootPointToLocal(x, y);
 
-        if (keysym != 0 && !xServer.keyboard.hasKeysym(keycode, keysym)) {
+        if (shiftedKeysym != 0) {
+            if (keysym != 0 && !xServer.keyboard.hasKeysyms(keycode, keysym, shiftedKeysym)) {
+                xServer.keyboard.setKeysyms(keycode, keysym, shiftedKeysym);
+                eventWindow.sendEvent(new MappingNotify(MappingNotify.Request.KEYBOARD, keycode, 1));
+            }
+        } else if (keysym != 0 && !xServer.keyboard.hasKeysym(keycode, keysym)) {
             xServer.keyboard.setKeysyms(keycode, keysym, keysym);
             eventWindow.sendEvent(new MappingNotify(MappingNotify.Request.KEYBOARD, keycode, 1));
         }
@@ -257,6 +263,7 @@ public class InputDeviceManager implements Pointer.OnPointerMotionListener, Keyb
         if (autoRepeat) {
             currentRepeatingKeycode = keycode;
             currentRepeatingKeysym = keysym;
+            currentRepeatingShiftedKeysym = shiftedKeysym;
             autoRepeatHandler.postDelayed(autoRepeatRunnable, repeatDelayMs);
         }
     }

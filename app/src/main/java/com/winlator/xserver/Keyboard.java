@@ -23,7 +23,8 @@ public class Keyboard {
     private final XServer xServer;
 
     public interface OnKeyboardListener {
-        void onKeyPress(byte keycode, int keysym, boolean autoRepeat);
+        /** shiftedKeysym is what the key types with Shift; 0 means the same as keysym. */
+        void onKeyPress(byte keycode, int keysym, int shiftedKeysym, boolean autoRepeat);
 
         void onKeyRelease(byte keycode);
     }
@@ -44,6 +45,11 @@ public class Keyboard {
         keysyms[index*KEYSYMS_PER_KEYCODE+1] = majKeysym;
     }
 
+    public boolean hasKeysyms(byte keycode, int minKeysym, int majKeysym) {
+        int index = keycode - 8;
+        return keysyms[index*KEYSYMS_PER_KEYCODE+0] == minKeysym && keysyms[index*KEYSYMS_PER_KEYCODE+1] == majKeysym;
+    }
+
     public boolean hasKeysym(byte keycode, int keysym) {
         int index = keycode - 8;
         return keysyms[index*KEYSYMS_PER_KEYCODE+0] == keysym || keysyms[index*KEYSYMS_PER_KEYCODE+1] == keysym;
@@ -54,7 +60,11 @@ public class Keyboard {
     }
 
     public void setKeyPress(byte keycode, int keysym, boolean autoRepeat) {
-        triggerOnKeyPress(keycode, keysym, autoRepeat);
+        setKeyPress(keycode, keysym, 0, autoRepeat);
+    }
+
+    public void setKeyPress(byte keycode, int keysym, int shiftedKeysym, boolean autoRepeat) {
+        triggerOnKeyPress(keycode, keysym, shiftedKeysym, autoRepeat);
         pressedKeys.add(keycode);
         if (isModifier(keycode)) modifiersMask.set(getModifierFlag(keycode));
     }
@@ -75,9 +85,9 @@ public class Keyboard {
         onKeyboardListeners.remove(onKeyboardListener);
     }
 
-    private void triggerOnKeyPress(byte keycode, int keysym, boolean autoRepeat) {
+    private void triggerOnKeyPress(byte keycode, int keysym, int shiftedKeysym, boolean autoRepeat) {
         for (int i = onKeyboardListeners.size()-1; i >= 0; i--) {
-            onKeyboardListeners.get(i).onKeyPress(keycode, keysym, autoRepeat);
+            onKeyboardListeners.get(i).onKeyPress(keycode, keysym, shiftedKeysym, autoRepeat);
         }
     }
 
@@ -149,7 +159,12 @@ public class Keyboard {
             // that never reaches us (e.g. focus moved mid-press) can't repeat a key forever.
             boolean syntheticShift = needsSyntheticShift(event);
             if (syntheticShift) xServer.injectKeyPress(XKeycode.KEY_SHIFT_L, 0, false);
-            xServer.injectKeyPress(xKeycode, printableKeysym(event), false);
+            int[] levels = keyLevels(event);
+            if (levels != null) {
+                xServer.injectKeyPress(xKeycode, levels[0], levels[1], false);
+            } else {
+                xServer.injectKeyPress(xKeycode, printableKeysym(event), false);
+            }
             if (syntheticShift) xServer.injectKeyRelease(XKeycode.KEY_SHIFT_L);
         } else if (action == KeyEvent.ACTION_UP) {
             xServer.injectKeyRelease(xKeycode);
@@ -162,6 +177,27 @@ public class Keyboard {
         if (pressedKeys.contains(XKeycode.KEY_SHIFT_L.getId()) || pressedKeys.contains(XKeycode.KEY_SHIFT_R.getId())) return false;
         int keyCode = event.getKeyCode();
         return event.isShiftPressed() || keyCode == KeyEvent.KEYCODE_AT || keyCode == KeyEvent.KEYCODE_STAR || keyCode == KeyEvent.KEYCODE_POUND || keyCode == KeyEvent.KEYCODE_PLUS;
+    }
+
+    /**
+     * What the key types without and with Shift, e.g. {'1', '!'}. Telling X both, as a real keyboard map does, keeps the
+     * key the same key when Shift is held, so Wine reports Shift+1 rather than a different key (Shift keybinds, #99).
+     * Returns null when the key doesn't type a printable ASCII character without Shift.
+     */
+    private static int[] keyLevels(KeyEvent event) {
+        try {
+            android.view.KeyCharacterMap map = event.getKeyCharacterMap();
+            int base = printable(map.get(event.getKeyCode(), 0));
+            if (base == 0) return null;
+            int shifted = printable(map.get(event.getKeyCode(), KeyEvent.META_SHIFT_ON));
+            return new int[] {base, shifted != 0 ? shifted : base};
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private static int printable(int unicodeChar) {
+        return unicodeChar > 32 && unicodeChar < 127 ? unicodeChar : 0;
     }
 
     private static int printableKeysym(KeyEvent event) {
