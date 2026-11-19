@@ -122,7 +122,18 @@ class IMEInputReceiver(
     )
 
     fun typeText(text: CharSequence) {
-        text.forEach(::sendCharacterToGame)
+        var index = 0
+        while (index < text.length) {
+            val codePoint = Character.codePointAt(text, index)
+            index += Character.charCount(codePoint)
+            val char = codePoint.toChar()
+            when {
+                codePoint <= 0xFFFF && charToKeyDispatch(char) != null -> sendCharacterToGame(char)
+                // Characters with no key on the US layout, such as Cyrillic (#43), are sent as the character itself.
+                !Character.isISOControl(codePoint) -> xServer.injectTextCharacter(codePoint)
+                else -> Timber.w("IMEInputReceiver: Could not map character U+%04X", codePoint)
+            }
+        }
     }
 
     private fun sendCharacterToGame(char: Char) {

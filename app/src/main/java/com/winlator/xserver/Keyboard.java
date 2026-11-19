@@ -87,6 +87,12 @@ public class Keyboard {
         }
     }
 
+    /** The X keysym for a character: Latin-1 keysyms equal their code point, every other character has a Unicode keysym. */
+    public static int unicodeKeysym(int codePoint) {
+        if ((codePoint >= 0x20 && codePoint <= 0x7e) || (codePoint >= 0xa0 && codePoint <= 0xff)) return codePoint;
+        return 0x01000000 | codePoint;
+    }
+
     public static boolean isKeyboardDevice(InputDevice device) {
         if (device == null) return false;
         return device.supportsSource(InputDevice.SOURCE_KEYBOARD) &&
