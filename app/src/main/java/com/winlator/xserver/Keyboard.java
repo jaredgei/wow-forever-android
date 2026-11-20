@@ -159,7 +159,7 @@ public class Keyboard {
             // that never reaches us (e.g. focus moved mid-press) can't repeat a key forever.
             boolean syntheticShift = needsSyntheticShift(event);
             if (syntheticShift) xServer.injectKeyPress(XKeycode.KEY_SHIFT_L, 0, false);
-            int[] levels = keyLevels(event);
+            int[] levels = keyLevels(event, xKeycode);
             if (levels != null) {
                 xServer.injectKeyPress(xKeycode, levels[0], levels[1], false);
             } else {
@@ -184,9 +184,17 @@ public class Keyboard {
      * key the same key when Shift is held, so Wine reports Shift+1 rather than a different key (Shift keybinds, #99).
      * Returns null when the key doesn't type a printable ASCII character without Shift.
      */
-    private static int[] keyLevels(KeyEvent event) {
+    private int[] keyLevels(KeyEvent event, XKeycode xKeycode) {
         try {
             android.view.KeyCharacterMap map = event.getKeyCharacterMap();
+            int type = map.getKeyboardType();
+            if (type != android.view.KeyCharacterMap.FULL && type != android.view.KeyCharacterMap.ALPHA) {
+                // A keypad such as an MMO mouse's side buttons often has no Shift level. Keep what a full keyboard set
+                // for this key, or the US layout if none did, so the key stays the same key to Wine (Shift+mouse 1).
+                int index = (xKeycode.getId() - MIN_KEYCODE) * KEYSYMS_PER_KEYCODE;
+                if (keysyms[index] != 0) return new int[] {keysyms[index], keysyms[index + 1]};
+                map = android.view.KeyCharacterMap.load(android.view.KeyCharacterMap.VIRTUAL_KEYBOARD);
+            }
             int base = printable(map.get(event.getKeyCode(), 0));
             if (base == 0) return null;
             int shifted = printable(map.get(event.getKeyCode(), KeyEvent.META_SHIFT_ON));
