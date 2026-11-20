@@ -58,6 +58,18 @@ internal object BattleNetBrowserLogin {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean("enabled", enabled).apply()
     }
 
+    /**
+     * Signs out of Battle.net's sign-in page: its cookies and web storage keep the last account signed in, so without
+     * this the next browser login goes straight back into that account. The app's only WebView is that page.
+     */
+    fun signOut() {
+        android.webkit.CookieManager.getInstance().apply {
+            removeAllCookies(null)
+            flush()
+        }
+        android.webkit.WebStorage.getInstance().deleteAllData()
+    }
+
     /** Runs after Wine prefix initialization. Container executable remains the game for window tracking. */
     @Synchronized
     fun start(context: Context, container: Container): Launch {

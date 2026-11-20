@@ -722,11 +722,15 @@ fun WoWForeverScreen(
                             browserLogin = !browserLogin
                             BattleNetBrowserLogin.setEnabled(context, browserLogin)
                         }
-                        if (hasSavedLogin) {
+                        // With browser login on, this also signs out of the Battle.net page so another account
+                        // can sign in next time.
+                        if (hasSavedLogin || browserLogin) {
                             LinkButton("Forget Login", Icons.Default.Delete) {
                                 BattleNetSignIn.forget(context)
                                 BattleNetSignIn.removeLoginFile(File(gamePath))
+                                BattleNetBrowserLogin.signOut()
                                 hasSavedLogin = false
+                                if (browserLogin) SnackbarManager.show("Signed out of Battle.net. The next launch asks you to sign in.")
                             }
                         }
                     }
