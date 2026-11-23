@@ -1205,10 +1205,26 @@ private const val DXVK_VERSION = "2.4.1-wow-aarch64-test"
 
 private data class GpuProfile(val driver: String, val tuDebug: String, val screenSize: String, val label: String, val edition: String) {
     companion object {
-        fun detect(context: Context) = if (isAdreno8xxDevice(context)) {
-            GpuProfile(ADRENO_8XX_DRIVER, "noconform,sysmem", "1280x720", "Adreno 8xx", "Snapdragon 8 Elite / Adreno 8xx")
-        } else {
-            GpuProfile(DEFAULT_DRIVER, "noconform", "1920x1080", "Adreno 740", "Snapdragon 8 Series / Adreno 740")
+        fun detect(context: Context) = when {
+            isAdreno8xxDevice(context) ->
+                GpuProfile(ADRENO_8XX_DRIVER, "noconform,sysmem", "1280x720", "Adreno 8xx", "Snapdragon 8 Elite / Adreno 8xx")
+            // The default Turnip build (Mesa fe067b17d9) has no FD720/FD710/FD732 entry, so Vulkan finds no device
+            // there. The V32 build knows these GPUs; they need GMEM rendering (sysmem is broken/slow on them).
+            isAdreno7xxMidrangeDevice(context) ->
+                GpuProfile(ADRENO_8XX_DRIVER, "noconform,gmem", "1280x720", "Adreno 7xx", "Snapdragon 7 Series / Adreno 7xx")
+            else ->
+                GpuProfile(DEFAULT_DRIVER, "noconform", "1920x1080", "Adreno 740", "Snapdragon 8 Series / Adreno 740")
+        }
+
+        private fun isAdreno7xxMidrangeDevice(context: Context): Boolean {
+            if (GPUInformation.isAdreno710_720_732(context)) return true
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                // SM7550 = Snapdragon 7 Gen 3 (Adreno 720, e.g. Motorola Edge 50 Pro), SM7635 = 7s Gen 3 (710),
+                // SM7675 = 7+ Gen 3 (732).
+                val soc = Build.SOC_MODEL
+                if (listOf("SM7550", "SM7635", "SM7675").any { soc.contains(it, ignoreCase = true) }) return true
+            }
+            return false
         }
 
         private fun isAdreno8xxDevice(context: Context): Boolean {

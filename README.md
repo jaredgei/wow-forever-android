@@ -19,6 +19,7 @@ This uses Blizzard's own **Windows ARM64** WoW client, so the game itself runs n
 | AYN Odin Portal (Snapdragon 8 Elite / Adreno 830) | Supported via bundled Turnip v32 driver |
 | RedMagic 11 Pro (Snapdragon 8 Elite / Adreno 840) | Tested in-world by arusiasotto |
 | Poco F7 (Snapdragon 8s Gen 4 / Adreno 825) | Tested by gusebus |
+| Motorola Edge 50 Pro (Snapdragon 7 Gen 3 / Adreno 720) | Experimental: uses the Turnip V32 driver with GMEM rendering at 720p (the default Adreno 740 driver has no Adreno 720 support) |
 | Samsung Galaxy S23/S24/S25 / Z Fold series | Supported (with automatic Samsung UBWC optimization) |
 
 Requirements:
