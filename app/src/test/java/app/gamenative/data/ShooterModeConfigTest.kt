@@ -22,6 +22,26 @@ class ShooterModeConfigTest {
     }
 
     @Test
+    fun `stick zone survives serialization and collapsed spans reset to full screen`() {
+        val zone = ShooterModeConfig(
+            stickZoneLeft = 0.1f,
+            stickZoneTop = 0.2f,
+            stickZoneRight = 0.9f,
+            stickZoneBottom = 0.8f,
+            showStickZoneOutline = false,
+        )
+        assertEquals(zone, ShooterModeConfig.fromJson(zone.toJson()))
+
+        val collapsed = ShooterModeConfig.fromJson(
+            """{"stickZoneLeft": 0.7, "stickZoneRight": 0.3, "stickZoneTop": -1.0, "stickZoneBottom": 0.5}""",
+        )
+        assertEquals(0.0f, collapsed.stickZoneLeft, 0.001f)
+        assertEquals(1.0f, collapsed.stickZoneRight, 0.001f)
+        assertEquals(0.0f, collapsed.stickZoneTop, 0.001f)
+        assertEquals(0.5f, collapsed.stickZoneBottom, 0.001f)
+    }
+
+    @Test
     fun `legacy joystick keys apply to movement and look joysticks`() {
         val config = ShooterModeConfig.fromJson(
             """

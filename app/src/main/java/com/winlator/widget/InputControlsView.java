@@ -271,6 +271,9 @@ public class InputControlsView extends View {
 
         // Draw dynamic joysticks when shooter mode is active
         boolean anyShooterActive = shooterModeActive || containerShooterModeRuntime;
+        if (anyShooterActive && !editMode) {
+            drawStickZoneOutline(canvas);
+        }
         if (anyShooterActive && joystickPointerId != -1) {
             drawShooterJoystick(canvas);
         }
@@ -638,6 +641,7 @@ public class InputControlsView extends View {
         commitGamepadState();
         this.shooterModeConfig = config != null ? config : ShooterModeConfig.fromJson("");
         applyShooterMouseInputMode();
+        invalidate();
         lookAccumX = 0;
         lookAccumY = 0;
         lookDeadzoneAccumX = 0;
@@ -1036,6 +1040,34 @@ public class InputControlsView extends View {
         canvas.drawCircle(currentX, currentY, thumbRadius + strokeWidth * 0.5f, paint);
     }
 
+    /** Dashed outline of the stick zone; skipped when the zone covers the whole screen. */
+    private void drawStickZoneOutline(Canvas canvas) {
+        if (shooterModeConfig == null || !shooterModeConfig.getShowStickZoneOutline()) return;
+        float left = shooterModeConfig.getStickZoneLeft();
+        float top = shooterModeConfig.getStickZoneTop();
+        float right = shooterModeConfig.getStickZoneRight();
+        float bottom = shooterModeConfig.getStickZoneBottom();
+        if (left <= 0f && top <= 0f && right >= 1f && bottom >= 1f) return;
+
+        float width = getWidth();
+        float height = getHeight();
+        float strokeWidth = snappingSize * 0.125f;
+        float inset = strokeWidth * 0.5f;
+        float dash = snappingSize;
+
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(strokeWidth);
+        paint.setColor(ColorUtils.setAlphaComponent(getPrimaryColor(), alphaForOpacity(getJoystickOpacity(), 90)));
+        paint.setPathEffect(new android.graphics.DashPathEffect(new float[]{dash, dash * 0.6f}, 0));
+        canvas.drawRect(
+                width * left + inset,
+                height * top + inset,
+                width * right - inset,
+                height * bottom - inset,
+                paint);
+        paint.setPathEffect(null);
+    }
+
     /** Get the bounding rect for the container shooter mode toggle button at top center. */
     private android.graphics.RectF getToggleButtonRect() {
         float btnW = snappingSize * 12;
@@ -1136,7 +1168,20 @@ public class InputControlsView extends View {
 
     private boolean isLeftSideTouch(float x) {
         float split = shooterModeConfig != null ? shooterModeConfig.getMovementZoneSplit() : 0.5f;
-        return x < getWidth() * split;
+        float left = shooterModeConfig != null ? shooterModeConfig.getStickZoneLeft() : 0.0f;
+        float right = shooterModeConfig != null ? shooterModeConfig.getStickZoneRight() : 1.0f;
+        return x < getWidth() * (left + (right - left) * split);
+    }
+
+    /** Touches outside the stick zone skip the dynamic sticks and reach the game as normal mouse input. */
+    private boolean isInsideStickZone(float x, float y) {
+        if (shooterModeConfig == null) return true;
+        float width = getWidth();
+        float height = getHeight();
+        return x >= width * shooterModeConfig.getStickZoneLeft()
+                && x <= width * shooterModeConfig.getStickZoneRight()
+                && y >= height * shooterModeConfig.getStickZoneTop()
+                && y <= height * shooterModeConfig.getStickZoneBottom();
     }
 
     private boolean shouldUseRightJoystickLook() {
@@ -1267,6 +1312,9 @@ public class InputControlsView extends View {
             }
         }
         if (!handled) {
+            if (!isInsideStickZone(x, y)) {
+                return false;
+            }
             if (isLeftSideTouch(x)) {
                 handled = startShooterJoystickPointer(pointerId, x, y);
             } else {
@@ -1445,6 +1493,7 @@ public class InputControlsView extends View {
                     touchpadView.setPointerButtonRightEnabled(true);
                     boolean lookThroughCandidate = false;
                     for (ControlElement element : profile.getElements()) {
+                        if (isStickHiddenByShooterMode(element)) continue;
                         if (element.handleTouchDown(pointerId, x, y)) {
                             performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
                             handled = true;
@@ -1486,6 +1535,7 @@ public class InputControlsView extends View {
                         // Shooter mode intercept per pointer
                         if (shooterModeActive || containerShooterModeRuntime) {
                             int pid = event.getPointerId(i);
+                            if (touchpadPointers.get(pid)) continue;
                             if (handleShooterTouchMovePointer(pid, x, y)) continue;
                             // Non-intercepted pointer in shooter mode: try elements with correct ID
                             handled = false;
@@ -1512,7 +1562,7 @@ public class InputControlsView extends View {
                             }
                         }
                     }
-                    if (!(shooterModeActive || containerShooterModeRuntime) && touchpadPointers.size() > 0) {
+                    if (touchpadPointers.size() > 0) {
                         touchpadView.onTouchEvent(event);
                     }
                     break;

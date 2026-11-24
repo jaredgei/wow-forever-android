@@ -31,6 +31,12 @@ data class ShooterModeConfig(
     val joystickOpacity: Float = JOYSTICK_OPACITY_UNSET,
     val showRuntimeToggle: Boolean = true,
     val movementZoneSplit: Float = 0.5f,
+    // Screen-fraction rect where touches spawn dynamic sticks; touches outside it act as plain mouse input.
+    val stickZoneLeft: Float = 0.0f,
+    val stickZoneTop: Float = 0.0f,
+    val stickZoneRight: Float = 1.0f,
+    val stickZoneBottom: Float = 1.0f,
+    val showStickZoneOutline: Boolean = true,
     val buttonLookThroughEnabled: Boolean = true,
     val buttonLookThroughDragThreshold: Int = DEFAULT_BUTTON_DRAG_THRESHOLD,
     val outerRingSprintEnabled: Boolean = false,
@@ -66,6 +72,11 @@ data class ShooterModeConfig(
             put(KEY_JOYSTICK_SIZE, movementJoystickSize.toDouble())
             put(KEY_JOYSTICK_BEHAVIOR, movementJoystickBehavior)
             put(KEY_MOVEMENT_ZONE_SPLIT, movementZoneSplit.toDouble())
+            put(KEY_STICK_ZONE_LEFT, stickZoneLeft.toDouble())
+            put(KEY_STICK_ZONE_TOP, stickZoneTop.toDouble())
+            put(KEY_STICK_ZONE_RIGHT, stickZoneRight.toDouble())
+            put(KEY_STICK_ZONE_BOTTOM, stickZoneBottom.toDouble())
+            put(KEY_SHOW_STICK_ZONE_OUTLINE, showStickZoneOutline)
             put(KEY_BUTTON_LOOK_THROUGH_ENABLED, buttonLookThroughEnabled)
             put(KEY_BUTTON_LOOK_THROUGH_DRAG_THRESHOLD, buttonLookThroughDragThreshold)
             put(KEY_OUTER_RING_SPRINT_ENABLED, outerRingSprintEnabled)
@@ -89,6 +100,7 @@ data class ShooterModeConfig(
         const val SPRINT_BINDING_SHIFT = "KEY_SHIFT_L"
 
         const val DEFAULT_BUTTON_DRAG_THRESHOLD = 12
+        const val MIN_STICK_ZONE_SPAN = 0.10f
         const val DEFAULT_ANALOG_STICK_DEADZONE = 0.01f
         const val JOYSTICK_OPACITY_UNSET = -1.0f
 
@@ -139,6 +151,11 @@ data class ShooterModeConfig(
         private const val KEY_MOUSE_ACCELERATION_MAX_MULTIPLIER = "mouseAccelerationMaxMultiplier"
         private const val KEY_WIN32_RELATIVE_MOUSE_INPUT = "win32RelativeMouseInput"
         private const val KEY_MOVEMENT_ZONE_SPLIT = "movementZoneSplit"
+        private const val KEY_STICK_ZONE_LEFT = "stickZoneLeft"
+        private const val KEY_STICK_ZONE_TOP = "stickZoneTop"
+        private const val KEY_STICK_ZONE_RIGHT = "stickZoneRight"
+        private const val KEY_STICK_ZONE_BOTTOM = "stickZoneBottom"
+        private const val KEY_SHOW_STICK_ZONE_OUTLINE = "showStickZoneOutline"
         private const val KEY_BUTTON_LOOK_THROUGH_ENABLED = "buttonLookThroughEnabled"
         private const val KEY_BUTTON_LOOK_THROUGH_DRAG_THRESHOLD = "buttonLookThroughDragThreshold"
         private const val KEY_JOYSTICK_BEHAVIOR = "joystickBehavior"
@@ -159,6 +176,14 @@ data class ShooterModeConfig(
                 )
                 val legacyJoystickBehavior = normalizeJoystickBehavior(
                     obj.optString(KEY_JOYSTICK_BEHAVIOR, JOYSTICK_ANCHORED),
+                )
+                val (stickZoneLeft, stickZoneRight) = normalizeStickZoneSpan(
+                    obj.optDouble(KEY_STICK_ZONE_LEFT, 0.0).toFloat(),
+                    obj.optDouble(KEY_STICK_ZONE_RIGHT, 1.0).toFloat(),
+                )
+                val (stickZoneTop, stickZoneBottom) = normalizeStickZoneSpan(
+                    obj.optDouble(KEY_STICK_ZONE_TOP, 0.0).toFloat(),
+                    obj.optDouble(KEY_STICK_ZONE_BOTTOM, 1.0).toFloat(),
                 )
                 ShooterModeConfig(
                     movementType = normalizeMovementType(
@@ -251,6 +276,11 @@ data class ShooterModeConfig(
                         0.10f,
                         0.90f,
                     ),
+                    stickZoneLeft = stickZoneLeft,
+                    stickZoneTop = stickZoneTop,
+                    stickZoneRight = stickZoneRight,
+                    stickZoneBottom = stickZoneBottom,
+                    showStickZoneOutline = obj.optBoolean(KEY_SHOW_STICK_ZONE_OUTLINE, true),
                     buttonLookThroughEnabled = obj.optBoolean(KEY_BUTTON_LOOK_THROUGH_ENABLED, true),
                     buttonLookThroughDragThreshold = obj.optInt(
                         KEY_BUTTON_LOOK_THROUGH_DRAG_THRESHOLD,
@@ -270,6 +300,13 @@ data class ShooterModeConfig(
             } catch (_: Exception) {
                 ShooterModeConfig()
             }
+        }
+
+        /** Clamps one axis of the stick zone; a span narrower than [MIN_STICK_ZONE_SPAN] resets to full screen. */
+        private fun normalizeStickZoneSpan(start: Float, end: Float): Pair<Float, Float> {
+            val s = clampFloat(start, 0.0f, 1.0f)
+            val e = clampFloat(end, 0.0f, 1.0f)
+            return if (e - s >= MIN_STICK_ZONE_SPAN - 0.001f) s to e else 0.0f to 1.0f
         }
 
         private fun normalizeMovementType(value: String): String {

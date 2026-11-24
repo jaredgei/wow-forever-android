@@ -135,6 +135,57 @@ fun ShooterModeSettingsDialog(
                             onValueChange = { config = config.copy(movementZoneSplit = it) },
                         )
 
+                        val minZoneSpan = ShooterModeConfig.MIN_STICK_ZONE_SPAN
+                        SliderSettingBlock(
+                            title = stringResource(R.string.shooter_stick_zone_left),
+                            subtitle = stringResource(R.string.shooter_stick_zone_subtitle),
+                            value = config.stickZoneLeft,
+                            valueRange = 0f..1f,
+                            valueText = percentText(config.stickZoneLeft, locale),
+                            onValueChange = {
+                                config = config.copy(stickZoneLeft = it.coerceAtMost(config.stickZoneRight - minZoneSpan))
+                            },
+                        )
+                        SliderSettingBlock(
+                            title = stringResource(R.string.shooter_stick_zone_right),
+                            subtitle = stringResource(R.string.shooter_stick_zone_subtitle),
+                            value = config.stickZoneRight,
+                            valueRange = 0f..1f,
+                            valueText = percentText(config.stickZoneRight, locale),
+                            onValueChange = {
+                                config = config.copy(stickZoneRight = it.coerceAtLeast(config.stickZoneLeft + minZoneSpan))
+                            },
+                        )
+                        SliderSettingBlock(
+                            title = stringResource(R.string.shooter_stick_zone_top),
+                            subtitle = stringResource(R.string.shooter_stick_zone_subtitle),
+                            value = config.stickZoneTop,
+                            valueRange = 0f..1f,
+                            valueText = percentText(config.stickZoneTop, locale),
+                            onValueChange = {
+                                config = config.copy(stickZoneTop = it.coerceAtMost(config.stickZoneBottom - minZoneSpan))
+                            },
+                        )
+                        SliderSettingBlock(
+                            title = stringResource(R.string.shooter_stick_zone_bottom),
+                            subtitle = stringResource(R.string.shooter_stick_zone_subtitle),
+                            value = config.stickZoneBottom,
+                            valueRange = 0f..1f,
+                            valueText = percentText(config.stickZoneBottom, locale),
+                            onValueChange = {
+                                config = config.copy(stickZoneBottom = it.coerceAtLeast(config.stickZoneTop + minZoneSpan))
+                            },
+                        )
+                        GestureBlock {
+                            SettingsSwitch(
+                                colors = settingsTileColorsAlt(),
+                                title = { Text(stringResource(R.string.shooter_stick_zone_outline)) },
+                                subtitle = { Text(stringResource(R.string.shooter_stick_zone_outline_subtitle)) },
+                                state = config.showStickZoneOutline,
+                                onCheckedChange = { config = config.copy(showStickZoneOutline = it) },
+                            )
+                        }
+
                         GestureBlock {
                             SettingsSwitch(
                                 colors = settingsTileColorsAlt(),
