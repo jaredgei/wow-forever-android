@@ -31,6 +31,7 @@ import app.gamenative.R;
 import app.gamenative.data.GyroSettings;
 import app.gamenative.data.ShooterModeConfig;
 import app.gamenative.data.StickZone;
+import app.gamenative.data.TouchGestureConfig;
 import com.winlator.inputcontrols.Binding;
 import com.winlator.inputcontrols.BindingCombo;
 import com.winlator.inputcontrols.ControlElement;
@@ -158,7 +159,7 @@ public class InputControlsView extends View {
         private final float startY;
         private final ControlElement element;
         private final boolean leftSide;
-        // Empty-space touch in the stick zone: becomes a stick past touch slop, or is replayed as a tap if lifted first.
+        // Empty-space touch in a stick zone: goes to the touchpad live, and is taken over as a stick past touch slop.
         private final boolean tapThrough;
         private final long downTime;
 
@@ -1270,9 +1271,7 @@ public class InputControlsView extends View {
 
         float dx = x - pending.startX;
         float dy = y - pending.startY;
-        float threshold = pending.tapThrough
-                ? lookThroughTouchSlop
-                : shooterModeConfig != null ? shooterModeConfig.getButtonLookThroughDragThreshold() : 0;
+        float threshold = shooterModeConfig != null ? shooterModeConfig.getButtonLookThroughDragThreshold() : 0;
         if (dx * dx + dy * dy < threshold * threshold) {
             return true;
         }
@@ -1335,10 +1334,40 @@ public class InputControlsView extends View {
             if (!inZone || !isStickSideFree(leftSide)) {
                 return false;
             }
+            // Not handled: the touchpad gets this touch too, so taps, long presses and double taps behave as usual.
             pendingButtonLooks.put(pointerId, new PendingButtonLook(x, y, null, leftSide, true, downTime));
-            handled = true;
         }
         return handled;
+    }
+
+    /**
+     * Moves a stick-zone touch that the touchpad is also tracking. Past touch slop it leaves the touchpad and becomes a
+     * stick from where it started; returns true then. Once the touchpad's long press is due, the touch stays a touch.
+     */
+    private boolean handleTapThroughMove(int pointerId, float x, float y, long eventTime) {
+        PendingButtonLook pending = pendingButtonLooks.get(pointerId);
+        if (pending == null || !pending.tapThrough) return false;
+
+        TouchGestureConfig gestures = touchpadView.getGestureConfig();
+        if (gestures.getLongPressEnabled() && eventTime - pending.downTime >= gestures.getLongPressDelay()) {
+            releasePendingButtonLook(pointerId);
+            return false;
+        }
+
+        float dx = x - pending.startX;
+        float dy = y - pending.startY;
+        if (dx * dx + dy * dy < lookThroughTouchSlop * lookThroughTouchSlop) return false;
+
+        releasePendingButtonLook(pointerId);
+        if (!isStickSideFree(pending.leftSide)) return false;
+
+        touchpadView.cancelTouchInput();
+        touchpadPointers.clear();
+        boolean started = pending.leftSide
+                ? startShooterJoystickPointer(pointerId, pending.startX, pending.startY)
+                : startRightSideShooterPointer(pointerId, pending.startX, pending.startY, null);
+        if (started) handleShooterTouchMovePointer(pointerId, x, y);
+        return started;
     }
 
     private boolean isStickSideFree(boolean leftSide) {
@@ -1356,20 +1385,6 @@ public class InputControlsView extends View {
         }
         touchpadView.setPointerButtonLeftEnabled(left);
         touchpadView.setPointerButtonRightEnabled(right);
-    }
-
-    /** Replays a stick-zone touch that never moved as a plain tap, so the game gets its normal click. */
-    private void replayTapThrough(PendingButtonLook pending, float upX, float upY, long upTime) {
-        // A synthetic single-pointer DOWN would reset gestures the touchpad is tracking for other fingers.
-        if (touchpadView == null || touchpadPointers.size() > 0) return;
-        MotionEvent down = MotionEvent.obtain(pending.downTime, pending.downTime, MotionEvent.ACTION_DOWN,
-                pending.startX, pending.startY, 0);
-        MotionEvent up = MotionEvent.obtain(pending.downTime, upTime, MotionEvent.ACTION_UP, upX, upY, 0);
-        updateTouchpadPointerButtons();
-        touchpadView.onTouchEvent(down);
-        touchpadView.onTouchEvent(up);
-        down.recycle();
-        up.recycle();
     }
 
     private boolean handleShooterTouchMovePointer(int pid, float x, float y) {
@@ -1576,6 +1591,7 @@ public class InputControlsView extends View {
                         // Shooter mode intercept per pointer
                         if (shooterModeActive || containerShooterModeRuntime) {
                             int pid = event.getPointerId(i);
+                            if (handleTapThroughMove(pid, x, y, event.getEventTime())) continue;
                             if (touchpadPointers.get(pid)) continue;
                             if (handleShooterTouchMovePointer(pid, x, y)) continue;
                             // Non-intercepted pointer in shooter mode: try elements with correct ID
@@ -1621,10 +1637,6 @@ public class InputControlsView extends View {
                         PendingButtonLook pending = pendingButtonLooks.get(pointerId);
                         if (pending != null) {
                             releasePendingButtonLook(pointerId);
-                            if (pending.tapThrough) {
-                                replayTapThrough(pending, event.getX(actionIndex), event.getY(actionIndex),
-                                        event.getEventTime());
-                            }
                             handled = true;
                         }
                         if (pointerId == joystickPointerId) {
