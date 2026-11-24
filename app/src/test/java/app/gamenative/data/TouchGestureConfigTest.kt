@@ -18,6 +18,15 @@ class TouchGestureConfigTest {
     }
 
     @Test
+    fun `double tap action defaults to left click and survives serialization`() {
+        assertEquals(TouchGestureConfig.ACTION_LEFT_CLICK, TouchGestureConfig.fromJson("{}").doubleTapAction)
+
+        val config = TouchGestureConfig(doubleTapAction = ACTION_RIGHT_CLICK)
+
+        assertEquals(ACTION_RIGHT_CLICK, TouchGestureConfig.fromJson(config.toJson()).doubleTapAction)
+    }
+
+    @Test
     fun `new touch options are written to json`() {
         val config = TouchGestureConfig(
             holdMouseButtonWhileTouchingEnabled = true,

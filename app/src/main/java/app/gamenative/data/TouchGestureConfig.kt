@@ -25,8 +25,9 @@ data class TouchGestureConfig(
     val longPressMouseBehavior: String = MOUSE_BEHAVIOR_HOLD,
     val longPressDelay: Int = DEFAULT_DELAY_MS,
 
-    // 4. Double-Tap — fixed action: Double Left Click
+    // 4. Double-Tap — customizable action; left click is sent as a double left click
     val doubleTapEnabled: Boolean = true,
+    val doubleTapAction: String = ACTION_LEFT_CLICK,
     val doubleTapDelay: Int = DEFAULT_DELAY_MS,
 
     // 5. Two-Finger Drag (camera pan) — customizable action
@@ -96,6 +97,7 @@ data class TouchGestureConfig(
             put(KEY_LONG_PRESS_MOUSE_BEHAVIOR, longPressMouseBehavior)
             put(KEY_LONG_PRESS_DELAY, longPressDelay)
             put(KEY_DOUBLE_TAP_ENABLED, doubleTapEnabled)
+            put(KEY_DOUBLE_TAP_ACTION, doubleTapAction)
             put(KEY_DOUBLE_TAP_DELAY, doubleTapDelay)
             put(KEY_TWO_FINGER_DRAG_ENABLED, twoFingerDragEnabled)
             put(KEY_TWO_FINGER_DRAG_ACTION, twoFingerDragAction)
@@ -182,6 +184,7 @@ data class TouchGestureConfig(
         private const val KEY_LONG_PRESS_MOUSE_BEHAVIOR = "longPressMouseBehavior"
         private const val KEY_LONG_PRESS_DELAY = "longPressDelay"
         private const val KEY_DOUBLE_TAP_ENABLED = "doubleTapEnabled"
+        private const val KEY_DOUBLE_TAP_ACTION = "doubleTapAction"
         private const val KEY_DOUBLE_TAP_DELAY = "doubleTapDelay"
         private const val KEY_TWO_FINGER_DRAG_ENABLED = "twoFingerDragEnabled"
         private const val KEY_TWO_FINGER_DRAG_ACTION = "twoFingerDragAction"
@@ -246,6 +249,7 @@ data class TouchGestureConfig(
                     ),
                     longPressDelay = obj.optInt(KEY_LONG_PRESS_DELAY, DEFAULT_DELAY_MS),
                     doubleTapEnabled = obj.optBoolean(KEY_DOUBLE_TAP_ENABLED, true),
+                    doubleTapAction = obj.optString(KEY_DOUBLE_TAP_ACTION, ACTION_LEFT_CLICK),
                     doubleTapDelay = obj.optInt(KEY_DOUBLE_TAP_DELAY, DEFAULT_DELAY_MS),
                     twoFingerDragEnabled = obj.optBoolean(KEY_TWO_FINGER_DRAG_ENABLED, true),
                     twoFingerDragAction = obj.optString(KEY_TWO_FINGER_DRAG_ACTION, PAN_ARROW_KEYS),

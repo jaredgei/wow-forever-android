@@ -862,20 +862,23 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
             return;
         }
 
-        // Double-tap detection (fixed action: double left click)
+        // Double-tap detection
         if (gestureConfig.getDoubleTapEnabled()) {
             long now = System.currentTimeMillis();
             float dist = (float) Math.hypot(x - lastTapX, y - lastTapY);
             if ((now - lastTapTime) < gestureConfig.getDoubleTapDelay()
                     && dist < TouchGestureConfig.DOUBLE_TAP_DISTANCE_PX) {
-                // Double-tap detected — send two rapid clicks so Windows/Wine
-                // reliably recognises the double-click pattern.
                 cancelLongPressTimer();
                 doubleTapDetected = true;
-                injectClick(TouchGestureConfig.ACTION_LEFT_CLICK);
-                injectRelease(TouchGestureConfig.ACTION_LEFT_CLICK);
-                injectClick(TouchGestureConfig.ACTION_LEFT_CLICK);
-                injectRelease(TouchGestureConfig.ACTION_LEFT_CLICK);
+                String doubleTapAction = gestureConfig.getDoubleTapAction();
+                injectClick(doubleTapAction);
+                injectRelease(doubleTapAction);
+                if (TouchGestureConfig.ACTION_LEFT_CLICK.equals(doubleTapAction)) {
+                    // Left click becomes two rapid clicks so Windows/Wine
+                    // reliably recognises the double-click pattern.
+                    injectClick(doubleTapAction);
+                    injectRelease(doubleTapAction);
+                }
                 notifyHighlight(event.getX(actionIndex), event.getY(actionIndex));
                 notifyGesture("Double-Tap");
                 lastTapTime = 0; // reset so triple doesn't fire

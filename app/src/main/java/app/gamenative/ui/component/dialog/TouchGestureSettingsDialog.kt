@@ -151,13 +151,21 @@ fun TouchGestureSettingsDialog(
                     )
                 }
 
-                // ── Double-Tap (fixed action, customisable delay) ────────
+                // ── Double-Tap (customisable action + delay) ─────────────
                 GestureRow(
                     title = stringResource(R.string.gesture_double_tap),
-                    subtitle = stringResource(R.string.gesture_double_tap_subtitle),
+                    subtitle = if (config.doubleTapAction == TouchGestureConfig.ACTION_LEFT_CLICK) {
+                        stringResource(R.string.gesture_double_tap_subtitle)
+                    } else {
+                        tapHoldActionLabel(config.doubleTapAction)
+                    },
                     enabled = config.doubleTapEnabled,
                     onEnabledChange = { config = config.copy(doubleTapEnabled = it) },
                 ) {
+                    TapHoldActionPicker(
+                        currentAction = config.doubleTapAction,
+                        onActionSelected = { config = config.copy(doubleTapAction = it) },
+                    )
                     DelayTextField(
                         label = stringResource(R.string.gesture_double_tap_delay),
                         value = config.doubleTapDelay,
