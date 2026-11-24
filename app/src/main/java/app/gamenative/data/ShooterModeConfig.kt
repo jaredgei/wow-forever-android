@@ -30,12 +30,9 @@ data class ShooterModeConfig(
     val lookJoystickBehavior: String = JOYSTICK_ANCHORED,
     val joystickOpacity: Float = JOYSTICK_OPACITY_UNSET,
     val showRuntimeToggle: Boolean = true,
-    val movementZoneSplit: Float = 0.5f,
-    // Screen-fraction rect where touches spawn dynamic sticks; touches outside it act as plain mouse input.
-    val stickZoneLeft: Float = 0.0f,
-    val stickZoneTop: Float = 0.0f,
-    val stickZoneRight: Float = 1.0f,
-    val stickZoneBottom: Float = 1.0f,
+    // Where touches spawn the movement and camera sticks; touches outside both act as plain mouse input.
+    val movementZone: StickZone = DEFAULT_MOVEMENT_ZONE,
+    val lookZone: StickZone = DEFAULT_LOOK_ZONE,
     val showStickZoneOutline: Boolean = true,
     val buttonLookThroughEnabled: Boolean = true,
     val buttonLookThroughDragThreshold: Int = DEFAULT_BUTTON_DRAG_THRESHOLD,
@@ -71,11 +68,8 @@ data class ShooterModeConfig(
             put(KEY_SHOW_RUNTIME_TOGGLE, showRuntimeToggle)
             put(KEY_JOYSTICK_SIZE, movementJoystickSize.toDouble())
             put(KEY_JOYSTICK_BEHAVIOR, movementJoystickBehavior)
-            put(KEY_MOVEMENT_ZONE_SPLIT, movementZoneSplit.toDouble())
-            put(KEY_STICK_ZONE_LEFT, stickZoneLeft.toDouble())
-            put(KEY_STICK_ZONE_TOP, stickZoneTop.toDouble())
-            put(KEY_STICK_ZONE_RIGHT, stickZoneRight.toDouble())
-            put(KEY_STICK_ZONE_BOTTOM, stickZoneBottom.toDouble())
+            put(KEY_MOVEMENT_ZONE, movementZone.toJson())
+            put(KEY_LOOK_ZONE, lookZone.toJson())
             put(KEY_SHOW_STICK_ZONE_OUTLINE, showStickZoneOutline)
             put(KEY_BUTTON_LOOK_THROUGH_ENABLED, buttonLookThroughEnabled)
             put(KEY_BUTTON_LOOK_THROUGH_DRAG_THRESHOLD, buttonLookThroughDragThreshold)
@@ -101,6 +95,8 @@ data class ShooterModeConfig(
 
         const val DEFAULT_BUTTON_DRAG_THRESHOLD = 12
         const val MIN_STICK_ZONE_SPAN = 0.10f
+        val DEFAULT_MOVEMENT_ZONE = StickZone(0.0f, 0.0f, 0.5f, 1.0f)
+        val DEFAULT_LOOK_ZONE = StickZone(0.5f, 0.0f, 1.0f, 1.0f)
         const val DEFAULT_ANALOG_STICK_DEADZONE = 0.01f
         const val JOYSTICK_OPACITY_UNSET = -1.0f
 
@@ -151,6 +147,9 @@ data class ShooterModeConfig(
         private const val KEY_MOUSE_ACCELERATION_MAX_MULTIPLIER = "mouseAccelerationMaxMultiplier"
         private const val KEY_WIN32_RELATIVE_MOUSE_INPUT = "win32RelativeMouseInput"
         private const val KEY_MOVEMENT_ZONE_SPLIT = "movementZoneSplit"
+        private const val KEY_MOVEMENT_ZONE = "movementZone"
+        private const val KEY_LOOK_ZONE = "lookZone"
+        // Legacy single stick zone, split into movement/look by KEY_MOVEMENT_ZONE_SPLIT.
         private const val KEY_STICK_ZONE_LEFT = "stickZoneLeft"
         private const val KEY_STICK_ZONE_TOP = "stickZoneTop"
         private const val KEY_STICK_ZONE_RIGHT = "stickZoneRight"
@@ -177,14 +176,7 @@ data class ShooterModeConfig(
                 val legacyJoystickBehavior = normalizeJoystickBehavior(
                     obj.optString(KEY_JOYSTICK_BEHAVIOR, JOYSTICK_ANCHORED),
                 )
-                val (stickZoneLeft, stickZoneRight) = normalizeStickZoneSpan(
-                    obj.optDouble(KEY_STICK_ZONE_LEFT, 0.0).toFloat(),
-                    obj.optDouble(KEY_STICK_ZONE_RIGHT, 1.0).toFloat(),
-                )
-                val (stickZoneTop, stickZoneBottom) = normalizeStickZoneSpan(
-                    obj.optDouble(KEY_STICK_ZONE_TOP, 0.0).toFloat(),
-                    obj.optDouble(KEY_STICK_ZONE_BOTTOM, 1.0).toFloat(),
-                )
+                val (legacyMovementZone, legacyLookZone) = legacyStickZones(obj)
                 ShooterModeConfig(
                     movementType = normalizeMovementType(
                         obj.optString(KEY_MOVEMENT_TYPE, MOVEMENT_GAMEPAD_LEFT_STICK),
@@ -271,15 +263,8 @@ data class ShooterModeConfig(
                         JOYSTICK_OPACITY_UNSET
                     },
                     showRuntimeToggle = obj.optBoolean(KEY_SHOW_RUNTIME_TOGGLE, true),
-                    movementZoneSplit = clampFloat(
-                        obj.optDouble(KEY_MOVEMENT_ZONE_SPLIT, 0.5).toFloat(),
-                        0.10f,
-                        0.90f,
-                    ),
-                    stickZoneLeft = stickZoneLeft,
-                    stickZoneTop = stickZoneTop,
-                    stickZoneRight = stickZoneRight,
-                    stickZoneBottom = stickZoneBottom,
+                    movementZone = StickZone.fromJson(obj.optJSONObject(KEY_MOVEMENT_ZONE), legacyMovementZone),
+                    lookZone = StickZone.fromJson(obj.optJSONObject(KEY_LOOK_ZONE), legacyLookZone),
                     showStickZoneOutline = obj.optBoolean(KEY_SHOW_STICK_ZONE_OUTLINE, true),
                     buttonLookThroughEnabled = obj.optBoolean(KEY_BUTTON_LOOK_THROUGH_ENABLED, true),
                     buttonLookThroughDragThreshold = obj.optInt(
@@ -302,11 +287,20 @@ data class ShooterModeConfig(
             }
         }
 
-        /** Clamps one axis of the stick zone; a span narrower than [MIN_STICK_ZONE_SPAN] resets to full screen. */
-        private fun normalizeStickZoneSpan(start: Float, end: Float): Pair<Float, Float> {
-            val s = clampFloat(start, 0.0f, 1.0f)
-            val e = clampFloat(end, 0.0f, 1.0f)
-            return if (e - s >= MIN_STICK_ZONE_SPAN - 0.001f) s to e else 0.0f to 1.0f
+        /** Older configs had one stick zone (default full screen) split left/right by the movement zone width. */
+        private fun legacyStickZones(obj: JSONObject): Pair<StickZone, StickZone> {
+            val zone = StickZone.fromJson(
+                JSONObject().apply {
+                    put("left", obj.optDouble(KEY_STICK_ZONE_LEFT, 0.0))
+                    put("top", obj.optDouble(KEY_STICK_ZONE_TOP, 0.0))
+                    put("right", obj.optDouble(KEY_STICK_ZONE_RIGHT, 1.0))
+                    put("bottom", obj.optDouble(KEY_STICK_ZONE_BOTTOM, 1.0))
+                },
+                StickZone(0.0f, 0.0f, 1.0f, 1.0f),
+            )
+            val split = clampFloat(obj.optDouble(KEY_MOVEMENT_ZONE_SPLIT, 0.5).toFloat(), 0.10f, 0.90f)
+            val splitX = zone.left + (zone.right - zone.left) * split
+            return zone.copy(right = splitX) to zone.copy(left = splitX)
         }
 
         private fun normalizeMovementType(value: String): String {
@@ -336,6 +330,38 @@ data class ShooterModeConfig(
 
         private fun clampFloat(value: Float, minValue: Float, maxValue: Float): Float {
             return max(minValue, min(value, maxValue))
+        }
+    }
+}
+
+/** Screen-fraction rectangle (0..1 on both axes) where touches spawn one dynamic stick. */
+data class StickZone(
+    val left: Float,
+    val top: Float,
+    val right: Float,
+    val bottom: Float,
+) {
+    fun contains(fx: Float, fy: Float): Boolean = fx in left..right && fy in top..bottom
+
+    fun toJson(): JSONObject = JSONObject().apply {
+        put("left", left.toDouble())
+        put("top", top.toDouble())
+        put("right", right.toDouble())
+        put("bottom", bottom.toDouble())
+    }
+
+    companion object {
+        /** Clamps to the screen; falls back to [default] when missing or when an axis spans less than 10%. */
+        fun fromJson(obj: JSONObject?, default: StickZone): StickZone {
+            if (obj == null) return default
+            val zone = StickZone(
+                obj.optDouble("left", default.left.toDouble()).toFloat().coerceIn(0f, 1f),
+                obj.optDouble("top", default.top.toDouble()).toFloat().coerceIn(0f, 1f),
+                obj.optDouble("right", default.right.toDouble()).toFloat().coerceIn(0f, 1f),
+                obj.optDouble("bottom", default.bottom.toDouble()).toFloat().coerceIn(0f, 1f),
+            )
+            val minSpan = ShooterModeConfig.MIN_STICK_ZONE_SPAN - 0.001f
+            return if (zone.right - zone.left >= minSpan && zone.bottom - zone.top >= minSpan) zone else default
         }
     }
 }

@@ -30,6 +30,7 @@ import androidx.core.graphics.ColorUtils;
 import app.gamenative.R;
 import app.gamenative.data.GyroSettings;
 import app.gamenative.data.ShooterModeConfig;
+import app.gamenative.data.StickZone;
 import com.winlator.inputcontrols.Binding;
 import com.winlator.inputcontrols.BindingCombo;
 import com.winlator.inputcontrols.ControlElement;
@@ -157,12 +158,22 @@ public class InputControlsView extends View {
         private final float startY;
         private final ControlElement element;
         private final boolean leftSide;
+        // Empty-space touch in the stick zone: becomes a stick past touch slop, or is replayed as a tap if lifted first.
+        private final boolean tapThrough;
+        private final long downTime;
 
         private PendingButtonLook(float startX, float startY, ControlElement element, boolean leftSide) {
+            this(startX, startY, element, leftSide, false, 0);
+        }
+
+        private PendingButtonLook(float startX, float startY, ControlElement element, boolean leftSide,
+                                  boolean tapThrough, long downTime) {
             this.startX = startX;
             this.startY = startY;
             this.element = element;
             this.leftSide = leftSide;
+            this.tapThrough = tapThrough;
+            this.downTime = downTime;
         }
     }
 
@@ -1040,15 +1051,14 @@ public class InputControlsView extends View {
         canvas.drawCircle(currentX, currentY, thumbRadius + strokeWidth * 0.5f, paint);
     }
 
-    /** Dashed outline of the stick zone; skipped when the zone covers the whole screen. */
+    /** Dashed outlines of the movement and camera stick zones. */
     private void drawStickZoneOutline(Canvas canvas) {
         if (shooterModeConfig == null || !shooterModeConfig.getShowStickZoneOutline()) return;
-        float left = shooterModeConfig.getStickZoneLeft();
-        float top = shooterModeConfig.getStickZoneTop();
-        float right = shooterModeConfig.getStickZoneRight();
-        float bottom = shooterModeConfig.getStickZoneBottom();
-        if (left <= 0f && top <= 0f && right >= 1f && bottom >= 1f) return;
+        drawStickZoneRect(canvas, shooterModeConfig.getMovementZone());
+        drawStickZoneRect(canvas, shooterModeConfig.getLookZone());
+    }
 
+    private void drawStickZoneRect(Canvas canvas, StickZone zone) {
         float width = getWidth();
         float height = getHeight();
         float strokeWidth = snappingSize * 0.125f;
@@ -1060,10 +1070,10 @@ public class InputControlsView extends View {
         paint.setColor(ColorUtils.setAlphaComponent(getPrimaryColor(), alphaForOpacity(getJoystickOpacity(), 90)));
         paint.setPathEffect(new android.graphics.DashPathEffect(new float[]{dash, dash * 0.6f}, 0));
         canvas.drawRect(
-                width * left + inset,
-                height * top + inset,
-                width * right - inset,
-                height * bottom - inset,
+                width * zone.getLeft() + inset,
+                height * zone.getTop() + inset,
+                width * zone.getRight() - inset,
+                height * zone.getBottom() - inset,
                 paint);
         paint.setPathEffect(null);
     }
@@ -1166,22 +1176,27 @@ public class InputControlsView extends View {
         drawDynamicJoystick(canvas, joystickCenterX, joystickCenterY, joystickCurrentX, joystickCurrentY, joystickSizeMultiplier);
     }
 
-    private boolean isLeftSideTouch(float x) {
-        float split = shooterModeConfig != null ? shooterModeConfig.getMovementZoneSplit() : 0.5f;
-        float left = shooterModeConfig != null ? shooterModeConfig.getStickZoneLeft() : 0.0f;
-        float right = shooterModeConfig != null ? shooterModeConfig.getStickZoneRight() : 1.0f;
-        return x < getWidth() * (left + (right - left) * split);
+    private StickZone getMovementZone() {
+        return shooterModeConfig != null ? shooterModeConfig.getMovementZone() : ShooterModeConfig.Companion.getDEFAULT_MOVEMENT_ZONE();
     }
 
-    /** Touches outside the stick zone skip the dynamic sticks and reach the game as normal mouse input. */
-    private boolean isInsideStickZone(float x, float y) {
-        if (shooterModeConfig == null) return true;
-        float width = getWidth();
-        float height = getHeight();
-        return x >= width * shooterModeConfig.getStickZoneLeft()
-                && x <= width * shooterModeConfig.getStickZoneRight()
-                && y >= height * shooterModeConfig.getStickZoneTop()
-                && y <= height * shooterModeConfig.getStickZoneBottom();
+    private StickZone getLookZone() {
+        return shooterModeConfig != null ? shooterModeConfig.getLookZone() : ShooterModeConfig.Companion.getDEFAULT_LOOK_ZONE();
+    }
+
+    private boolean isInZone(StickZone zone, float x, float y) {
+        return zone.contains(x / getWidth(), y / getHeight());
+    }
+
+    /** Movement side if inside the movement zone, camera side if inside the camera zone, else whichever zone is nearer. */
+    private boolean isLeftSideTouch(float x, float y) {
+        StickZone movement = getMovementZone();
+        StickZone look = getLookZone();
+        if (isInZone(movement, x, y)) return true;
+        if (isInZone(look, x, y)) return false;
+        float movementCenter = (movement.getLeft() + movement.getRight()) * 0.5f;
+        float lookCenter = (look.getLeft() + look.getRight()) * 0.5f;
+        return Math.abs(x / getWidth() - movementCenter) <= Math.abs(x / getWidth() - lookCenter);
     }
 
     private boolean shouldUseRightJoystickLook() {
@@ -1240,13 +1255,13 @@ public class InputControlsView extends View {
 
         int threshold = shooterModeConfig.getButtonLookThroughDragThreshold();
         if (threshold <= 0) {
-            if (isLeftSideTouch(x)) startShooterJoystickPointer(pointerId, x, y);
+            if (isLeftSideTouch(x, y)) startShooterJoystickPointer(pointerId, x, y);
             else startRightSideShooterPointer(pointerId, x, y, fireElement);
             return;
         }
 
         if (pendingButtonLooks.get(pointerId) != null) return;
-        pendingButtonLooks.put(pointerId, new PendingButtonLook(x, y, fireElement, isLeftSideTouch(x)));
+        pendingButtonLooks.put(pointerId, new PendingButtonLook(x, y, fireElement, isLeftSideTouch(x, y)));
     }
 
     private boolean handlePendingButtonLookMove(int pointerId, float x, float y) {
@@ -1255,7 +1270,9 @@ public class InputControlsView extends View {
 
         float dx = x - pending.startX;
         float dy = y - pending.startY;
-        float threshold = shooterModeConfig != null ? shooterModeConfig.getButtonLookThroughDragThreshold() : 0;
+        float threshold = pending.tapThrough
+                ? lookThroughTouchSlop
+                : shooterModeConfig != null ? shooterModeConfig.getButtonLookThroughDragThreshold() : 0;
         if (dx * dx + dy * dy < threshold * threshold) {
             return true;
         }
@@ -1272,7 +1289,7 @@ public class InputControlsView extends View {
         return true;
     }
 
-    private boolean handleShooterTouchDown(int pointerId, float x, float y, boolean allowButtonLookThrough) {
+    private boolean handleShooterTouchDown(int pointerId, float x, float y, boolean allowButtonLookThrough, long downTime) {
         boolean handled = false;
 
         // Check container shooter mode toggle button first
@@ -1312,16 +1329,47 @@ public class InputControlsView extends View {
             }
         }
         if (!handled) {
-            if (!isInsideStickZone(x, y)) {
+            boolean leftSide = isLeftSideTouch(x, y);
+            boolean inZone = isInZone(leftSide ? getMovementZone() : getLookZone(), x, y);
+            // Outside both zones, or that side's stick is already held: plain mouse input.
+            if (!inZone || !isStickSideFree(leftSide)) {
                 return false;
             }
-            if (isLeftSideTouch(x)) {
-                handled = startShooterJoystickPointer(pointerId, x, y);
-            } else {
-                handled = startRightSideShooterPointer(pointerId, x, y, null);
-            }
+            pendingButtonLooks.put(pointerId, new PendingButtonLook(x, y, null, leftSide, true, downTime));
+            handled = true;
         }
         return handled;
+    }
+
+    private boolean isStickSideFree(boolean leftSide) {
+        if (leftSide) return joystickPointerId == -1;
+        return shouldUseRightJoystickLook() ? rightJoystickPointerId == -1 : lookPointerId == -1;
+    }
+
+    /** Touch taps don't press a mouse button that an on-screen control already provides. */
+    private void updateTouchpadPointerButtons() {
+        boolean left = true;
+        boolean right = true;
+        for (ControlElement element : profile.getElements()) {
+            if (element.getBindingAt(0) == Binding.MOUSE_LEFT_BUTTON) left = false;
+            if (element.getBindingAt(0) == Binding.MOUSE_RIGHT_BUTTON) right = false;
+        }
+        touchpadView.setPointerButtonLeftEnabled(left);
+        touchpadView.setPointerButtonRightEnabled(right);
+    }
+
+    /** Replays a stick-zone touch that never moved as a plain tap, so the game gets its normal click. */
+    private void replayTapThrough(PendingButtonLook pending, float upX, float upY, long upTime) {
+        // A synthetic single-pointer DOWN would reset gestures the touchpad is tracking for other fingers.
+        if (touchpadView == null || touchpadPointers.size() > 0) return;
+        MotionEvent down = MotionEvent.obtain(pending.downTime, pending.downTime, MotionEvent.ACTION_DOWN,
+                pending.startX, pending.startY, 0);
+        MotionEvent up = MotionEvent.obtain(pending.downTime, upTime, MotionEvent.ACTION_UP, upX, upY, 0);
+        updateTouchpadPointerButtons();
+        touchpadView.onTouchEvent(down);
+        touchpadView.onTouchEvent(up);
+        down.recycle();
+        up.recycle();
     }
 
     private boolean handleShooterTouchMovePointer(int pid, float x, float y) {
@@ -1485,12 +1533,11 @@ public class InputControlsView extends View {
 
                     // Shooter mode intercept (use containerShooterMode so toggle button is always reachable)
                     if ((shooterModeActive || containerShooterMode)
-                            && handleShooterTouchDown(pointerId, x, y, !touchscreenMode)) {
+                            && handleShooterTouchDown(pointerId, x, y, !touchscreenMode, event.getEventTime())) {
                         break;
                     }
 
-                    touchpadView.setPointerButtonLeftEnabled(true);
-                    touchpadView.setPointerButtonRightEnabled(true);
+                    updateTouchpadPointerButtons();
                     boolean lookThroughCandidate = false;
                     for (ControlElement element : profile.getElements()) {
                         if (isStickHiddenByShooterMode(element)) continue;
@@ -1503,12 +1550,6 @@ public class InputControlsView extends View {
                                     && element.isLookThrough()) {
                                 lookThroughCandidate = true;
                             }
-                        }
-                        if (element.getBindingAt(0) == Binding.MOUSE_LEFT_BUTTON) {
-                            touchpadView.setPointerButtonLeftEnabled(false);
-                        }
-                        if (element.getBindingAt(0) == Binding.MOUSE_RIGHT_BUTTON) {
-                            touchpadView.setPointerButtonRightEnabled(false);
                         }
                     }
                     if (lookThroughCandidate) {
@@ -1577,8 +1618,13 @@ public class InputControlsView extends View {
                     }
                     // Shooter mode intercept
                     if (shooterModeActive || containerShooterModeRuntime) {
-                        if (pendingButtonLooks.get(pointerId) != null) {
+                        PendingButtonLook pending = pendingButtonLooks.get(pointerId);
+                        if (pending != null) {
                             releasePendingButtonLook(pointerId);
+                            if (pending.tapThrough) {
+                                replayTapThrough(pending, event.getX(actionIndex), event.getY(actionIndex),
+                                        event.getEventTime());
+                            }
                             handled = true;
                         }
                         if (pointerId == joystickPointerId) {

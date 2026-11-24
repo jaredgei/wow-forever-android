@@ -22,23 +22,27 @@ class ShooterModeConfigTest {
     }
 
     @Test
-    fun `stick zone survives serialization and collapsed spans reset to full screen`() {
-        val zone = ShooterModeConfig(
-            stickZoneLeft = 0.1f,
-            stickZoneTop = 0.2f,
-            stickZoneRight = 0.9f,
-            stickZoneBottom = 0.8f,
+    fun `stick zones survive serialization and collapsed zones fall back to defaults`() {
+        val zones = ShooterModeConfig(
+            movementZone = StickZone(0.0f, 0.2f, 0.3f, 0.8f),
+            lookZone = StickZone(0.7f, 0.1f, 0.95f, 0.85f),
             showStickZoneOutline = false,
         )
-        assertEquals(zone, ShooterModeConfig.fromJson(zone.toJson()))
+        assertEquals(zones, ShooterModeConfig.fromJson(zones.toJson()))
 
         val collapsed = ShooterModeConfig.fromJson(
-            """{"stickZoneLeft": 0.7, "stickZoneRight": 0.3, "stickZoneTop": -1.0, "stickZoneBottom": 0.5}""",
+            """{"movementZone": {"left": 0.7, "top": 0.0, "right": 0.3, "bottom": 1.0}}""",
         )
-        assertEquals(0.0f, collapsed.stickZoneLeft, 0.001f)
-        assertEquals(1.0f, collapsed.stickZoneRight, 0.001f)
-        assertEquals(0.0f, collapsed.stickZoneTop, 0.001f)
-        assertEquals(0.5f, collapsed.stickZoneBottom, 0.001f)
+        assertEquals(ShooterModeConfig.DEFAULT_MOVEMENT_ZONE, collapsed.movementZone)
+    }
+
+    @Test
+    fun `legacy single stick zone is split by movement zone width`() {
+        val config = ShooterModeConfig.fromJson(
+            """{"stickZoneLeft": 0.0, "stickZoneTop": 0.15, "stickZoneRight": 0.8, "stickZoneBottom": 0.85, "movementZoneSplit": 0.25}""",
+        )
+        assertEquals(StickZone(0.0f, 0.15f, 0.2f, 0.85f), config.movementZone)
+        assertEquals(StickZone(0.2f, 0.15f, 0.8f, 0.85f), config.lookZone)
     }
 
     @Test
@@ -74,7 +78,6 @@ class ShooterModeConfigTest {
                 "movementStickSensitivity": 10.0,
                 "lookStickSensitivity": 0.01,
                 "joystickOpacity": 0.0,
-                "movementZoneSplit": 2.0,
                 "buttonLookThroughDragThreshold": 999,
                 "outerRingSprintThreshold": 0.0
             }
@@ -92,7 +95,6 @@ class ShooterModeConfigTest {
         assertEquals(5.0f, config.movementStickSensitivity, 0.001f)
         assertEquals(0.1f, config.lookStickSensitivity, 0.001f)
         assertEquals(0.01f, config.joystickOpacity, 0.001f)
-        assertEquals(0.90f, config.movementZoneSplit, 0.001f)
         assertEquals(64, config.buttonLookThroughDragThreshold)
         assertEquals(0.5f, config.outerRingSprintThreshold, 0.001f)
     }
