@@ -23,7 +23,11 @@ This uses Blizzard's own **Windows ARM64** WoW client, so the game itself runs n
 
 Requirements:
 
-- Snapdragon 8 series (Adreno 7xx or Adreno 8xx). The app bundles both the Adreno 740 driver and the Turnip v32 driver for Snapdragon 8 Elite / Adreno 8xx, automatically detecting the GPU and applying the optimal driver and environment flags.
+- Snapdragon 8 series (Adreno 740 or Adreno 8xx). The app bundles both the Adreno 740 driver and the Turnip v32 driver for Snapdragon 8 Elite / Adreno 8xx, automatically detecting the GPU and applying the optimal driver and environment flags.
+- Not supported:
+  - Snapdragon 7 series and other Adreno GPUs below the 740 are too slow: an Adreno 720 runs at about 10 FPS (#104).
+  - The Adreno 850 (e.g. RedMagic 12 Pro) has no Turnip driver that renders WoW correctly yet (#103).
+  - MediaTek, Kirin and other non-Adreno GPUs have no Turnip driver at all (#96, #101).
 - Android 10 or newer, 64-bit.
 - About **60 GB** free for the game data (internal storage or SD card), plus about 4 GB of internal storage for the app and its Windows environment.
 - Wi-Fi. A computer is optional: it only speeds up the first install by copying the game data over instead of streaming it.
