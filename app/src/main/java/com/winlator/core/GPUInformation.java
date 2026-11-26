@@ -201,6 +201,12 @@ public abstract class GPUInformation {
         return r.contains("adreno") && r.matches(".*\\b740\\b.*");
     }
 
+    /** Snapdragon 8 Gen 3's GPU, e.g. in the Galaxy S24 Ultra. */
+    public static boolean isAdreno750(Context context) {
+        String r = getRenderer(context).toLowerCase(Locale.ENGLISH);
+        return r.contains("adreno") && r.matches(".*\\b750\\b.*");
+    }
+
 
     public static boolean isAdrenoGPU(Context context) {
         return getRenderer(null, context).toLowerCase().contains("adreno");
