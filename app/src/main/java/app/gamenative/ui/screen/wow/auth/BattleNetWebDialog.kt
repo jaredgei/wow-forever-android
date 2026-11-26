@@ -83,14 +83,17 @@ internal fun BattleNetWebDialog(
                     if (completed.compareAndSet(false, true)) errorCallback(message)
                 }
 
+                /** Hands over the ticket when [address] is the sign-in callback. Returns whether it was. */
+                private fun takeTicket(view: WebView, address: String): Boolean {
+                    val ticket = BrowserAuthUrl.ticket(address) ?: return false
+                    view.stopLoading()
+                    if (completed.compareAndSet(false, true)) ticketCallback(ticket) else ticket.fill(0)
+                    return true
+                }
+
                 private fun navigate(view: WebView, address: String): Boolean {
                     if (completed.get()) return true
-                    val ticket = BrowserAuthUrl.ticket(address)
-                    if (ticket != null) {
-                        view.stopLoading()
-                        if (completed.compareAndSet(false, true)) ticketCallback(ticket) else ticket.fill(0)
-                        return true
-                    }
+                    if (takeTicket(view, address)) return true
                     if (!BrowserAuthUrl.isNavigationUrl(address)) {
                         fail(view, "Sign-in tried to open an unsupported address. Cancel and try again.")
                         return true
@@ -123,11 +126,19 @@ internal fun BattleNetWebDialog(
                 }
 
                 override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
-                    if (request.isForMainFrame && !completed.get()) fail(view, "The sign-in page could not load. Check your connection and try again.")
+                    if (!request.isForMainFrame || completed.get()) return
+                    // The callback address (http://localhost:0/?ST=...) is not a real server, so Chromium can report
+                    // it as a failed load instead of handing it to shouldOverrideUrlLoading. It carries the ticket
+                    // all the same, and passes the same strict check as any other navigation.
+                    if (takeTicket(view, request.url.toString())) return
+                    // The error code and name only, never the URL: they are what a bug report needs.
+                    fail(view, "The sign-in page could not load (${error.description}, code ${error.errorCode}). Check your connection and try again.")
                 }
 
                 override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, errorResponse: WebResourceResponse) {
-                    if (request.isForMainFrame && !completed.get()) fail(view, "Battle.net could not complete this sign-in page. Try again later.")
+                    if (!request.isForMainFrame || completed.get()) return
+                    if (takeTicket(view, request.url.toString())) return
+                    fail(view, "Battle.net could not complete this sign-in page (HTTP ${errorResponse.statusCode}). Try again later.")
                 }
             }
             loadUrl(url)

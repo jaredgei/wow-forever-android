@@ -250,7 +250,11 @@ internal object BattleNetBrowserLogin {
 
     @Synchronized
     fun webError(browser: Ui.Browser, message: String) {
-        if (mutableUi.value === browser) active?.let { fail(it, message) }
+        if (mutableUi.value === browser) active?.let {
+            // The page's messages carry an error code or name, never a URL, so they are safe to keep for bug reports.
+            diag(it, "sign-in page error: $message")
+            fail(it, message)
+        }
     }
 
     @Synchronized
