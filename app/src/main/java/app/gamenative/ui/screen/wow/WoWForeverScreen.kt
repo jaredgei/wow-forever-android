@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -124,6 +125,11 @@ fun WoWForeverScreen(
     var pendingInstallPermission by remember { mutableStateOf(false) }
     var downloadedApk by remember { mutableStateOf<File?>(null) }
     var showUpgradeDialog by remember { mutableStateOf(false) }
+    var showFrameGenDialog by remember { mutableStateOf(false) }
+    var frameGenHasDll by remember { mutableStateOf(FrameGeneration.hasDll(context)) }
+    var frameGenEnabled by remember { mutableStateOf(FrameGeneration.enabled(context)) }
+    var frameGenMultiplier by remember { mutableIntStateOf(FrameGeneration.multiplier(context)) }
+    var isImportingFrameGen by remember { mutableStateOf(false) }
 
     suspend fun fetchAppUpdate(): AppUpdater.Release? {
         val release = AppUpdater.check()
@@ -313,6 +319,24 @@ fun WoWForeverScreen(
                 Timber.e(e, "Add-on import failed")
                 if (e.isPermissionDenied()) denyStorageAccess()
                 errorMessage = "Add-on import failed: ${e.message}"
+            }
+        }
+    }
+
+    val frameGenDllPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        isImportingFrameGen = true
+        scope.launch {
+            try {
+                withContext(Dispatchers.IO) { FrameGeneration.import(context, uri, gpu.driver) }
+                SnackbarManager.show("Lossless.dll imported. Frame generation is on.")
+            } catch (e: Exception) {
+                Timber.e(e, "Lossless.dll import failed")
+                SnackbarManager.show("Import failed: ${e.message}")
+            } finally {
+                frameGenHasDll = FrameGeneration.hasDll(context)
+                frameGenEnabled = FrameGeneration.enabled(context)
+                isImportingFrameGen = false
             }
         }
     }
@@ -710,6 +734,13 @@ fun WoWForeverScreen(
                             }
                         }
                         LinkButton(
+                            text = if (frameGenEnabled) "Frame Gen: ${frameGenMultiplier}×" else "Frame Gen: Off",
+                            icon = Icons.Default.Speed,
+                            enabled = !isLaunching,
+                        ) {
+                            showFrameGenDialog = true
+                        }
+                        LinkButton(
                             text = "Password login",
                             icon = Icons.Default.Key,
                         ) {
@@ -759,6 +790,31 @@ fun WoWForeverScreen(
                 BattleNetSignIn.save(context, login)
                 hasSavedLogin = true
             },
+        )
+    }
+
+    if (showFrameGenDialog) {
+        FrameGenerationDialog(
+            hasDll = frameGenHasDll,
+            enabled = frameGenEnabled,
+            multiplier = frameGenMultiplier,
+            isImporting = isImportingFrameGen,
+            // Some file managers don't map .dll to a MIME type, so accept anything and validate on import.
+            onImport = { frameGenDllPicker.launch(arrayOf("application/x-msdownload", "application/octet-stream", "*/*")) },
+            onRemove = {
+                FrameGeneration.remove(context)
+                frameGenHasDll = false
+                frameGenEnabled = false
+            },
+            onEnabledChange = {
+                FrameGeneration.setEnabled(context, it)
+                frameGenEnabled = FrameGeneration.enabled(context)
+            },
+            onMultiplierChange = {
+                FrameGeneration.setMultiplier(context, it)
+                frameGenMultiplier = FrameGeneration.multiplier(context)
+            },
+            onDismiss = { showFrameGenDialog = false },
         )
     }
 
@@ -1288,6 +1344,10 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, scr
         container.saveData()
     }
     check(containerManager.hasContainer(CONTAINER_ID)) { "Container creation failed. Check system storage and logs." }
+    containerManager.getContainerById(CONTAINER_ID)?.let {
+        FrameGeneration.applyTo(context, it)
+        it.saveData()
+    }
     // Written last, so the password isn't on disk during the client download or container setup.
     if (BattleNetBrowserLogin.enabled(context)) {
         // Even an empty login.txt can select the password path instead of the launcher session.

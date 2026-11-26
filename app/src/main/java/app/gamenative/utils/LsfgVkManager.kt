@@ -98,7 +98,7 @@ object LsfgVkManager {
     fun isSupported(container: Container): Boolean =
         container.containerVariant.equals(Container.BIONIC, ignoreCase = true)
 
-    /** Whether LSFG is armed (enabled + Lossless.dll available in Steam dir) for this container. The DLL is copied into the container at launch time by ensureRuntimeInstalled(). */
+    /** Whether LSFG is armed (enabled + imported Lossless.dll available) for this container. The DLL is copied into the container at launch time by ensureRuntimeInstalled(). */
     @JvmStatic
     fun isArmed(container: Container): Boolean =
         isSupported(container) &&
@@ -502,6 +502,17 @@ object LsfgVkManager {
             return false
         }
 
+        if (isNativeBackend(container)) {
+            // The host VulkanRenderer generates the frames; the in-container layer
+            // would only sit in the game's present path as a pass-through.
+            disableLayerInContainer(container)
+            Timber.tag(TAG).i(
+                "LSFG armed (native backend): multiplier=%d, flowScale=%.2f",
+                multiplier(container), flowScale(container)
+            )
+            return true
+        }
+
         envVars.put(ENV_CONFIG, configFile(container).absolutePath)
         envVars.put(ENV_PROCESS, PROCESS_EXE_IDENTIFIER)
 
@@ -540,7 +551,89 @@ object LsfgVkManager {
 
     // ---- DLL discovery -----------------------------------------------------
 
-    private fun findSteamDll(): File? = null
+    /**
+     * App-private copy of Lossless.dll the user imported from their own Lossless
+     * Scaling install (Steam app 993090). The DLL is proprietary, so it is never
+     * bundled; without it frame generation stays unavailable.
+     */
+    private const val IMPORTED_DLL_RELATIVE_PATH = "lsfg/$LOSSLESS_DLL_NAME"
+
+    // DOS "MZ" header + "PE\0\0" signature; Lossless.dll is several MB.
+    private const val MIN_DLL_BYTES = 512L * 1024L
+    private const val MAX_DLL_BYTES = 256L * 1024L * 1024L
+
+    @Volatile private var filesDir: File? = null
+
+    /** Call once from Application.onCreate so DLL lookups work without a Context. */
+    @JvmStatic
+    fun init(context: Context) {
+        filesDir = context.applicationContext.filesDir
+    }
+
+    @JvmStatic
+    fun importedDllFile(context: Context): File =
+        File(context.applicationContext.filesDir, IMPORTED_DLL_RELATIVE_PATH)
+
+    /**
+     * Copy [input] into app storage as Lossless.dll after checking it is a PE
+     * image that the native pipeline can extract its shaders from.
+     * Throws [IllegalArgumentException] with a user-facing message on rejection.
+     */
+    @JvmStatic
+    @Synchronized
+    fun importDll(context: Context, input: java.io.InputStream, driverName: String?) {
+        val target = importedDllFile(context)
+        target.parentFile?.mkdirs()
+        val tmp = File(target.parentFile, "$LOSSLESS_DLL_NAME.import")
+        try {
+            tmp.outputStream().use { out ->
+                val buf = ByteArray(64 * 1024)
+                var total = 0L
+                while (true) {
+                    val n = input.read(buf)
+                    if (n < 0) break
+                    total += n
+                    require(total <= MAX_DLL_BYTES) { "File is too large to be Lossless.dll" }
+                    out.write(buf, 0, n)
+                }
+            }
+            require(tmp.length() >= MIN_DLL_BYTES) { "File is too small to be Lossless.dll" }
+            require(isPeImage(tmp)) { "Not a Windows DLL. Pick Lossless.dll from your Lossless Scaling folder." }
+            requireNotNull(LosslessScaling.resolveOrBuildCache(context, tmp, driverName)) {
+                "This DLL doesn't contain the Lossless Scaling frame-generation shaders"
+            }
+            check(tmp.renameTo(target) || (target.delete() && tmp.renameTo(target))) { "Couldn't store Lossless.dll" }
+            nativeCachePath = null
+            Timber.tag(TAG).i("Imported Lossless.dll (%d bytes)", target.length())
+        } finally {
+            tmp.delete()
+        }
+    }
+
+    @JvmStatic
+    fun removeImportedDll(context: Context) {
+        importedDllFile(context).delete()
+        nativeCachePath = null
+    }
+
+    private fun isPeImage(file: File): Boolean = try {
+        java.io.RandomAccessFile(file, "r").use { raf ->
+            if (raf.readUnsignedByte() != 'M'.code || raf.readUnsignedByte() != 'Z'.code) return false
+            raf.seek(0x3C)
+            val b0 = raf.readUnsignedByte(); val b1 = raf.readUnsignedByte()
+            val b2 = raf.readUnsignedByte(); val b3 = raf.readUnsignedByte()
+            val peOffset = (b0 or (b1 shl 8) or (b2 shl 16) or (b3 shl 24)).toLong()
+            if (peOffset <= 0 || peOffset > raf.length() - 4) return false
+            raf.seek(peOffset)
+            raf.readUnsignedByte() == 'P'.code && raf.readUnsignedByte() == 'E'.code &&
+                raf.readUnsignedByte() == 0 && raf.readUnsignedByte() == 0
+        }
+    } catch (t: Throwable) {
+        false
+    }
+
+    private fun findSteamDll(): File? =
+        filesDir?.let { File(it, IMPORTED_DLL_RELATIVE_PATH) }?.takeIf { it.isFile }
 
     // ---- Helpers -----------------------------------------------------------
 
