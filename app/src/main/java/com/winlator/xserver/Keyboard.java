@@ -176,6 +176,9 @@ public class Keyboard {
     private boolean needsSyntheticShift(KeyEvent event) {
         if (pressedKeys.contains(XKeycode.KEY_SHIFT_L.getId()) || pressedKeys.contains(XKeycode.KEY_SHIFT_R.getId())) return false;
         int keyCode = event.getKeyCode();
+        // A Shift key's own press reports Shift as pressed. Wrapping it in a synthetic Shift would release the real
+        // Shift right away, so a held Shift wouldn't reach the game (Shift with mouse buttons or clicks, #108).
+        if (keyCode == KeyEvent.KEYCODE_SHIFT_LEFT || keyCode == KeyEvent.KEYCODE_SHIFT_RIGHT) return false;
         return event.isShiftPressed() || keyCode == KeyEvent.KEYCODE_AT || keyCode == KeyEvent.KEYCODE_STAR || keyCode == KeyEvent.KEYCODE_POUND || keyCode == KeyEvent.KEYCODE_PLUS;
     }
 
