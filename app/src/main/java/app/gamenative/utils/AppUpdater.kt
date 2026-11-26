@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
-import androidx.core.content.FileProvider
 import app.gamenative.BuildConfig
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -129,12 +128,11 @@ object AppUpdater {
             openInstallPermissionSettings(context)
             return
         }
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", apkFile)
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "application/vnd.android.package-archive")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        // A session install, not ACTION_VIEW, so the app becomes its own installer of record (GameCategory).
+        try {
+            SelfInstaller.install(context, listOf(apkFile))
+        } catch (e: Exception) {
+            Timber.e(e, "Couldn't start the update install")
         }
-        context.startActivity(intent)
     }
 }

@@ -129,6 +129,7 @@ Whenever Blizzard patches the game:
 | *No realms available* / no servers listed | The device client is out of date. Tap **Update** on the launcher setup screen, or restart the app with Wi-Fi enabled. |
 | Keyboard doesn't appear | Force-stop Gboard (Settings → Apps → Gboard → Force stop) and open **Keyboard** again. It can get stuck on the second screen. |
 | Returns to the launcher after "Launching Game…" | Check the files under `_forever_/Errors/` on the device. |
+| Samsung's Game Booster panel doesn't appear in-game | Tap **Enable Game Booster** on the setup screen and confirm the reinstall; the app closes, then open it again. Samsung ignores the app's own "game" declaration and adding it in Gaming Hub isn't enough: only the app's installer can mark it a game, so the app reinstalls itself once. Updates from the app's own updater keep it marked. |
 | Handheld frontend (e.g. Cocoon) shows the wrong icon | The frontend cached an old icon. Set it with the frontend's "Edit App Artwork", or reinstall the app. |
 
 ---

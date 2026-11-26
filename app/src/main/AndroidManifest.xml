@@ -84,6 +84,18 @@
             </intent-filter>
         </activity-alias>
 
+        <!-- Results of the app's own installs (SelfInstaller): updates, and the reinstall that enables Game Booster. -->
+        <receiver
+            android:name=".utils.InstallResultReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".utils.PackageReplacedReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
         <!-- FileProvider for secure file sharing (for APK installation) -->
         <provider
             android:name="androidx.core.content.FileProvider"
