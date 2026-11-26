@@ -15,6 +15,7 @@ This uses Blizzard's own **Windows ARM64** WoW client, so the game itself runs n
 | AYN Thor (Snapdragon 8 Gen 2 / Adreno 740) | Tested, reaches the game world with controller support |
 | Retroid Pocket 6 (Snapdragon 8 Gen 2 / Adreno 740) | Tested by the original community setup |
 | AYN Odin 2 / Mini (Snapdragon 8 Gen 2) | Expected to work |
+| Samsung Galaxy S24 Ultra (Snapdragon 8 Gen 3 / Adreno 750) | Tested in-world; defaults to 900p |
 | OnePlus 15r (Snapdragon 8 Gen 5 / Adreno 829) | Tested in-world by Nathangarl |
 | AYN Odin Portal (Snapdragon 8 Elite / Adreno 830) | Supported via bundled Turnip v32 driver |
 | RedMagic 11 Pro (Snapdragon 8 Elite / Adreno 840) | Tested in-world by arusiasotto |
@@ -23,7 +24,7 @@ This uses Blizzard's own **Windows ARM64** WoW client, so the game itself runs n
 
 Requirements:
 
-- Snapdragon 8 series (Adreno 740 or Adreno 8xx). The app bundles both the Adreno 740 driver and the Turnip v32 driver for Snapdragon 8 Elite / Adreno 8xx, automatically detecting the GPU and applying the optimal driver and environment flags.
+- Snapdragon 8 series (Adreno 740, 750 or 8xx). The app bundles both the Adreno 740 driver and the Turnip v32 driver for Snapdragon 8 Elite / Adreno 8xx, automatically detecting the GPU and applying the optimal driver and environment flags.
 - Not supported:
   - Snapdragon 7 series and other Adreno GPUs below the 740 are too slow: an Adreno 720 runs at about 10 FPS (#104).
   - The Adreno 850 (e.g. RedMagic 12 Pro) has no Turnip driver that renders WoW correctly yet (#103).
@@ -90,7 +91,7 @@ Once your game files and Battle.net credentials are configured, the app automati
 - **Setup screen:** to access folder settings, forget credentials, check environment status, or view updates, hold **Start + Select + L2 + R2** (or tap the back button) during the loading splash to cancel boot and return to the setup screen.
 - The app creates a basic `WTF/Config.wtf` on first run and always sets `gxApi "D3D11"`, the renderer that works with DXVK.
 - **Region:** tap **Region** on the setup screen to choose Americas, Europe, Korea or Taiwan. The game logs straight into that region without showing its region picker. New installs default to a guess based on the phone's country. The game is also installed and updated to the build that region's realms run, which can differ between regions right after a patch.
-- **Resolution:** tap **Resolution** on the setup screen to choose 720p, 900p or 1080p. Adreno 740 devices default to 1080p and Adreno 8xx devices to 720p, which runs much smoother there. The game's resolution is set from this on every launch and reshaped to fit non-16:9 screens.
+- **Resolution:** tap **Resolution** on the setup screen to choose 720p, 900p or 1080p. Adreno 740 devices default to 1080p, Adreno 750 devices to 900p, since fanless phones such as the Galaxy S24 Ultra throttle at 1080p, and Adreno 8xx devices to 720p, which runs much smoother there. The game's resolution is set from this on every launch and reshaped to fit non-16:9 screens.
 - **Add-ons:** download an add-on's `.zip` on your device, then tap **Add-on** on the setup screen and pick it. It's installed into `_forever_/Interface/AddOns`, replacing any older copy. You can also copy add-on folders there yourself.
 
 ### Controls and signing in
