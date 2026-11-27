@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -43,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import app.gamenative.BuildConfig
+import app.gamenative.GameCategory
 import app.gamenative.PluviaApp
 import app.gamenative.events.AndroidEvent
 import app.gamenative.ui.screen.wow.WowClientDownloader.BUILD_INFO
@@ -59,6 +61,7 @@ import app.gamenative.ui.theme.WowMuted
 import app.gamenative.ui.theme.WowSubtle
 import app.gamenative.ui.util.SnackbarManager
 import app.gamenative.utils.AppUpdater
+import app.gamenative.utils.SelfInstaller
 import app.gamenative.utils.StorageUtils
 import app.gamenative.utils.renderReleaseNotes
 import com.winlator.container.Container
@@ -109,6 +112,7 @@ fun WoWForeverScreen(
     var region by remember(gamePath, files) { mutableStateOf(GameRegion.current(context, gamePath)) }
     var resolution by remember { mutableStateOf(RenderResolution.current(context, gpu.screenSize)) }
     var showLoginDialog by remember { mutableStateOf(false) }
+    val needsSelfInstall = remember { GameCategory.needsSelfInstall(context) }
     var statusText by remember { mutableStateOf(READY_STATUS) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showStoragePermissionDialog by remember { mutableStateOf(false) }
@@ -701,6 +705,22 @@ fun WoWForeverScreen(
                             checkFiles()
                             checkVersionStatus()
                             checkAppUpdate()
+                        }
+                        // Samsung shows Game Booster's panel only for apps marked as games, which this app can only do
+                        // after installing itself (GameCategory). Android closes the app for the reinstall.
+                        if (needsSelfInstall) {
+                            LinkButton("Enable Game Booster", Icons.Default.SportsEsports, enabled = !isLaunching && !isUpdating) {
+                                if (!AppUpdater.canInstall(context)) {
+                                    AppUpdater.openInstallPermissionSettings(context)
+                                } else {
+                                    try {
+                                        SelfInstaller.reinstallSelf(context)
+                                    } catch (e: Exception) {
+                                        Timber.e(e, "Couldn't reinstall to enable Game Booster")
+                                        errorMessage = "Couldn't enable Game Booster: ${e.message}"
+                                    }
+                                }
+                            }
                         }
                         if (!files.needsInstall) {
                             LinkButton("Location", Icons.Default.FolderOpen) { folderPicker.launch(null) }

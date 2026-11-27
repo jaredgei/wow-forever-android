@@ -44,6 +44,7 @@ class PluviaApp : Application() {
 
         CrashHandler.initialize(this)
         PrefManager.init(this)
+        GameCategory.claim(this)
     }
 
     companion object {
